@@ -1,0 +1,29 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.moved-aside
+.swiftpm/
+.build/
+
+# Secrets & signing — never commit
+Config/Secrets.xcconfig
+Config/Secrets.Release.xcconfig
+.env
+*.p12
+*.p8
+*.cer
+*.mobileprovision
+*.provisionprofile
+
+# Firebase config — uncomment if this repository is public
+# ShareYou/Resources/GoogleService-Info.plist
+
+# Firebase tools
+Firebase/functions/node_modules/
+Firebase/functions/service-account.json
+firebase-debug.log*
+
+.DS_Store

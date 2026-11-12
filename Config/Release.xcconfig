@@ -1,0 +1,20 @@
+#include "Base.xcconfig"
+
+// Release defaults (overridden by Secrets.Release.xcconfig below).
+// Real production AdMob ids are in Secrets.Release.xcconfig.
+ADMOB_APP_ID = ca-app-pub-9297250663056879~7637998540
+ADMOB_BANNER_ID = ca-app-pub-9297250663056879/3058343877
+ADMOB_INTERSTITIAL_ID = ca-app-pub-9297250663056879/4803951640
+ADMOB_REWARDED_ID = ca-app-pub-9297250663056879/1755116471
+ADMOB_APP_OPEN_ID = ca-app-pub-9297250663056879/5283297946
+ADMOB_NATIVE_ID = ca-app-pub-9297250663056879/1152481245
+
+
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited)
+SWIFT_OPTIMIZATION_LEVEL = -O
+SWIFT_COMPILATION_MODE = wholemodule
+VALIDATE_PRODUCT = YES
+ENABLE_NS_ASSERTIONS = NO
+APP_CHECK_ENV = production
+
+#include? "Secrets.Release.xcconfig"

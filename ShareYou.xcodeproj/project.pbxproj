@@ -1,0 +1,392 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		7AA07ED6AF7C1352E0D7E48F /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 4C64E7A12AC3C46D64D8ED33 /* FirebaseAnalytics */; };
+		57CA113F12AA61725D7349C7 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = B48721BC30A913CAE5BC68E8 /* FirebaseCrashlytics */; };
+		FA14CC3DDB16880E309B3475 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 1281E59C2A2E9F94F17A6081 /* FirebaseMessaging */; };
+		14DC361B44DCBFC2C412050A /* FirebaseRemoteConfig in Frameworks */ = {isa = PBXBuildFile; productRef = 49A85FB54C852E75987C70CC /* FirebaseRemoteConfig */; };
+		98D358AFB6184DD224838DDE /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 844CDC222B85B8BE420A1C2D /* FirebaseAuth */; };
+		799E302A506B6C1DF1E33217 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = AABB98529ED5A1F84959EDDB /* FirebaseFirestore */; };
+		103B433CDCD81A4CD05DF8C1 /* FirebaseAppCheck in Frameworks */ = {isa = PBXBuildFile; productRef = CB214EFEAEA6281831053DF7 /* FirebaseAppCheck */; };
+		B676FB43C189BE6A27CE948E /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = BD83873FFCDE7219BF31F060 /* GoogleSignIn */; };
+		D908CB77A11C14D5847261B2 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = B4C3FA06613069D24B0C5155 /* GoogleMobileAds */; };
+		8FEE3F185D5691233054A165 /* GoogleUserMessagingPlatform in Frameworks */ = {isa = PBXBuildFile; productRef = 9D52B00CFAF48DE449B4DC8B /* GoogleUserMessagingPlatform */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		996AD237BC284D463E664FFE /* ShareYou.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ShareYou.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		06E874E7753D7338DCEA7827 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+		9D3B22E1220770A75D46EDE9 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		3E5645C55390C055F6EE664A /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		DEA8CF7A697D2FF4CEA397E7 /* Secrets.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.example.xcconfig; sourceTree = "<group>"; };
+		D66ADE64E49AA35420BAEC8B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		57A01370FB28950A8A70D26F /* ShareYou.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareYou.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		E13EE9B0944181C31FED299B /* ShareYou */ = {isa = PBXFileSystemSynchronizedRootGroup; path = ShareYou; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		9EA1AC50D4B0055C110846DE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7AA07ED6AF7C1352E0D7E48F /* FirebaseAnalytics in Frameworks */,
+				57CA113F12AA61725D7349C7 /* FirebaseCrashlytics in Frameworks */,
+				FA14CC3DDB16880E309B3475 /* FirebaseMessaging in Frameworks */,
+				14DC361B44DCBFC2C412050A /* FirebaseRemoteConfig in Frameworks */,
+				98D358AFB6184DD224838DDE /* FirebaseAuth in Frameworks */,
+				799E302A506B6C1DF1E33217 /* FirebaseFirestore in Frameworks */,
+				103B433CDCD81A4CD05DF8C1 /* FirebaseAppCheck in Frameworks */,
+				B676FB43C189BE6A27CE948E /* GoogleSignIn in Frameworks */,
+				D908CB77A11C14D5847261B2 /* GoogleMobileAds in Frameworks */,
+				8FEE3F185D5691233054A165 /* GoogleUserMessagingPlatform in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		71DC27D9F8E3B109C877BFC4 = {
+			isa = PBXGroup;
+			children = (
+				E13EE9B0944181C31FED299B /* ShareYou */,
+				89B104369EBC5E85E7E43C6B /* Config */,
+				113236722DEE1DC96F378B9D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		89B104369EBC5E85E7E43C6B /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				06E874E7753D7338DCEA7827 /* Base.xcconfig */,
+				9D3B22E1220770A75D46EDE9 /* Debug.xcconfig */,
+				3E5645C55390C055F6EE664A /* Release.xcconfig */,
+				DEA8CF7A697D2FF4CEA397E7 /* Secrets.example.xcconfig */,
+				D66ADE64E49AA35420BAEC8B /* Info.plist */,
+				57A01370FB28950A8A70D26F /* ShareYou.entitlements */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		113236722DEE1DC96F378B9D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				996AD237BC284D463E664FFE /* ShareYou.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		8FA30C0E1D69A1B1AA7AE973 /* ShareYou */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5054258FE252208FEB8093CA /* Build configuration list for PBXNativeTarget "ShareYou" */;
+			buildPhases = (
+				D3C95E37FB51BEEBFB3E63BF /* Sources */,
+				9EA1AC50D4B0055C110846DE /* Frameworks */,
+				34274CC4D8480DF68A75E3AA /* Resources */,
+				78DAF134BA439435D1BEA40C /* Upload dSYMs to Crashlytics */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				E13EE9B0944181C31FED299B /* ShareYou */,
+			);
+			name = ShareYou;
+			packageProductDependencies = (
+				4C64E7A12AC3C46D64D8ED33 /* FirebaseAnalytics */,
+				B48721BC30A913CAE5BC68E8 /* FirebaseCrashlytics */,
+				1281E59C2A2E9F94F17A6081 /* FirebaseMessaging */,
+				49A85FB54C852E75987C70CC /* FirebaseRemoteConfig */,
+				844CDC222B85B8BE420A1C2D /* FirebaseAuth */,
+				AABB98529ED5A1F84959EDDB /* FirebaseFirestore */,
+				CB214EFEAEA6281831053DF7 /* FirebaseAppCheck */,
+				BD83873FFCDE7219BF31F060 /* GoogleSignIn */,
+				B4C3FA06613069D24B0C5155 /* GoogleMobileAds */,
+				9D52B00CFAF48DE449B4DC8B /* GoogleUserMessagingPlatform */,
+			);
+			productName = ShareYou;
+			productReference = 996AD237BC284D463E664FFE /* ShareYou.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		46F86FAA6BBF9AC94A7E4595 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1640;
+				LastUpgradeCheck = 1640;
+				TargetAttributes = {
+					8FA30C0E1D69A1B1AA7AE973 = {
+						CreatedOnToolsVersion = 16.4;
+					};
+				};
+			};
+			buildConfigurationList = 946392D46B65BE2E368A0D3B /* Build configuration list for PBXProject "ShareYou" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				ar,
+				es,
+				fr,
+				hi,
+				id,
+				pt,
+				tr,
+				ur,
+			);
+			mainGroup = 71DC27D9F8E3B109C877BFC4;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				168B7AFFA40C239BD6CD3911 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				AFFF39CB689F6F04D63BF66F /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				6A67D2DE46DE90B7A363A329 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+				95312908F87B8B89D1191B7D /* XCRemoteSwiftPackageReference "swift-package-manager-google-user-messaging-platform" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 113236722DEE1DC96F378B9D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8FA30C0E1D69A1B1AA7AE973 /* ShareYou */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		34274CC4D8480DF68A75E3AA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		78DAF134BA439435D1BEA40C /* Upload dSYMs to Crashlytics */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}",
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${PRODUCT_NAME}",
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Info.plist",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/GoogleService-Info.plist",
+				"$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)",
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${PRODUCT_NAME}.debug.dylib",
+			);
+			name = "Upload dSYMs to Crashlytics";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D3C95E37FB51BEEBFB3E63BF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		567A887258EFB128D2B7B662 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 9D3B22E1220770A75D46EDE9 /* Debug.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		F6E13E434D454266E90D8854 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 3E5645C55390C055F6EE664A /* Release.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+		311F378CF4B1FBC07A3FFB46 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 9D3B22E1220770A75D46EDE9 /* Debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				GENERATE_INFOPLIST_FILE = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+			};
+			name = Debug;
+		};
+		EA3A3A0F81F745597E3134C2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 3E5645C55390C055F6EE664A /* Release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				GENERATE_INFOPLIST_FILE = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		946392D46B65BE2E368A0D3B /* Build configuration list for PBXProject "ShareYou" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				567A887258EFB128D2B7B662 /* Debug */,
+				F6E13E434D454266E90D8854 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5054258FE252208FEB8093CA /* Build configuration list for PBXNativeTarget "ShareYou" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				311F378CF4B1FBC07A3FFB46 /* Debug */,
+				EA3A3A0F81F745597E3134C2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		168B7AFFA40C239BD6CD3911 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.0.0;
+			};
+		};
+		AFFF39CB689F6F04D63BF66F /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
+		6A67D2DE46DE90B7A363A329 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.0.0;
+			};
+		};
+		95312908F87B8B89D1191B7D /* XCRemoteSwiftPackageReference "swift-package-manager-google-user-messaging-platform" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/swift-package-manager-google-user-messaging-platform.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		4C64E7A12AC3C46D64D8ED33 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 168B7AFFA40C239BD6CD3911 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
+		B48721BC30A913CAE5BC68E8 /* FirebaseCrashlytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 168B7AFFA40C239BD6CD3911 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCrashlytics;
+		};
+		1281E59C2A2E9F94F17A6081 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 168B7AFFA40C239BD6CD3911 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
+		};
+		49A85FB54C852E75987C70CC /* FirebaseRemoteConfig */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 168B7AFFA40C239BD6CD3911 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseRemoteConfig;
+		};
+		844CDC222B85B8BE420A1C2D /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 168B7AFFA40C239BD6CD3911 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		AABB98529ED5A1F84959EDDB /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 168B7AFFA40C239BD6CD3911 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+		CB214EFEAEA6281831053DF7 /* FirebaseAppCheck */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 168B7AFFA40C239BD6CD3911 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAppCheck;
+		};
+		BD83873FFCDE7219BF31F060 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AFFF39CB689F6F04D63BF66F /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		B4C3FA06613069D24B0C5155 /* GoogleMobileAds */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6A67D2DE46DE90B7A363A329 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
+			productName = GoogleMobileAds;
+		};
+		9D52B00CFAF48DE449B4DC8B /* GoogleUserMessagingPlatform */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 95312908F87B8B89D1191B7D /* XCRemoteSwiftPackageReference "swift-package-manager-google-user-messaging-platform" */;
+			productName = GoogleUserMessagingPlatform;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+}

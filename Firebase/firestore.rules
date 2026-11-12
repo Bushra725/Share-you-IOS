@@ -1,0 +1,49 @@
+rules_version = '2';
+
+// Share you — Cloud Firestore security rules.
+// Only signed-in users have data, and each user can only read and write their own document.
+// Deploy:  cd Firebase && npx -y firebase-tools@latest deploy --only firestore --project yourmob-send-share-files
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+
+    function validProfile(d) {
+      return d.keys().hasOnly(['displayName', 'email', 'deviceName', 'avatar', 'platform', 'appVersion',
+                               'fcmToken', 'sentCount', 'sentBytes', 'receivedCount', 'receivedBytes',
+                               'createdAt', 'updatedAt'])
+        && (!('displayName' in d) || (d.displayName is string && d.displayName.size() <= 100))
+        && (!('email' in d) || (d.email is string && d.email.size() <= 200))
+        && (!('deviceName' in d) || (d.deviceName is string && d.deviceName.size() <= 64))
+        && (!('avatar' in d) || (d.avatar is int && d.avatar >= 0 && d.avatar < 64))
+        && (!('platform' in d) || d.platform in ['ios', 'android'])
+        && (!('appVersion' in d) || (d.appVersion is string && d.appVersion.size() <= 20))
+        && (!('fcmToken' in d) || (d.fcmToken is string && d.fcmToken.size() <= 4096))
+        && (!('sentCount' in d) || (d.sentCount is int && d.sentCount >= 0))
+        && (!('sentBytes' in d) || (d.sentBytes is int && d.sentBytes >= 0))
+        && (!('receivedCount' in d) || (d.receivedCount is int && d.receivedCount >= 0))
+        && (!('receivedBytes' in d) || (d.receivedBytes is int && d.receivedBytes >= 0))
+        && (!('updatedAt' in d) || d.updatedAt == request.time);
+    }
+
+    // Counters may only grow.
+    function countersOk(before, after) {
+      return (!('sentCount' in before) || after.sentCount >= before.sentCount)
+        && (!('receivedCount' in before) || after.receivedCount >= before.receivedCount);
+    }
+
+    match /users/{uid} {
+      allow read, delete: if isOwner(uid);
+      allow create: if isOwner(uid) && validProfile(request.resource.data);
+      allow update: if isOwner(uid) && validProfile(request.resource.data)
+                    && countersOk(resource.data, request.resource.data)
+                    && request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null);
+    }
+
+    // Everything else is closed (no test mode).
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
