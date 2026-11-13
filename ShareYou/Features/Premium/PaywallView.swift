@@ -46,24 +46,31 @@ struct PaywallView: View {
                     }
                     OfflineBanner()
                     plans
+                    if store.loadingProducts {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("Loading plans from the App Store…").font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
                     if let message = store.message {
-                        Text(message).font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                        Text(message).font(.footnote).foregroundStyle(.red).multilineTextAlignment(.center)
                     }
                     Button {
-                        guard let p = store.product(selected) else { return }
                         Task {
-                            await store.purchase(p)
+                            await store.purchase(productID: selected)
                             if store.isPremium { dismiss() }
                         }
                     } label: {
                         HStack {
-                            if store.purchasing { ProgressView().tint(Brand.navy) }
-                            Text("Continue")
+                            if store.purchasing || store.loadingProducts { ProgressView().tint(Brand.navy) }
+                            Text(store.product(selected) == nil ? "Retry & Continue" : "Continue")
                         }
                         .frame(maxWidth: .infinity)
+                        .opacity(store.purchasing ? 0.7 : 1)
                     }
                     .buttonStyle(BrandButtonStyle())
-                    .disabled(store.product(selected) == nil || store.purchasing)
+                    .disabled(store.purchasing || store.loadingProducts)
+                    .accessibilityHint(Text("Starts the App Store purchase for the selected plan"))
 
                     if !store.isPremium {
                         Button {

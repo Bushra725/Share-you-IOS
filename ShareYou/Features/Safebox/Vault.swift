@@ -39,6 +39,9 @@ final class Vault: ObservableObject {
     @Published private(set) var hasPattern: Bool
     @Published private(set) var hasQuestions: Bool
 
+    /// Skip auto-lock while a decrypted preview (or similar) is on screen.
+    var suppressAutoLock = false
+
     private var key: SymmetricKey?
 
     private init() {
@@ -124,6 +127,16 @@ final class Vault: ObservableObject {
     }
 
     func lock() {
+        guard !suppressAutoLock else { return }
+        key = nil
+        entries = []
+        isUnlocked = false
+        try? FileManager.default.removeItem(at: tempDir)
+    }
+
+    /// Always locks, even during preview — used by the explicit "Lock now" action.
+    func lockNow() {
+        suppressAutoLock = false
         key = nil
         entries = []
         isUnlocked = false

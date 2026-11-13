@@ -27,6 +27,7 @@ final class StoreService: ObservableObject {
     @Published private(set) var isPremium = false
     @Published var message: String?
     @Published private(set) var purchasing = false
+    @Published private(set) var loadingProducts = false
 
     private var updates: Task<Void, Never>?
 
@@ -44,20 +45,40 @@ final class StoreService: ObservableObject {
     }
 
     func loadProducts() async {
+        loadingProducts = true
+        defer { loadingProducts = false }
         do {
             let loaded = try await Product.products(for: Self.allIDs)
             products = Self.allIDs.compactMap { id in loaded.first { $0.id == id } }
-            if products.isEmpty { message = String(localized: "Plans are not available right now. Check your connection and try again.") }
+            if products.isEmpty {
+                message = String(localized: "Plans are not available yet. Create the IAP products in App Store Connect, or check your connection and try again.")
+            } else if message?.contains("not available") == true {
+                message = nil
+            }
         } catch {
-            message = String(localized: "The App Store is not available right now.")
+            message = String(localized: "The App Store is not available right now. \(error.localizedDescription)")
             Log.e("StoreKit products failed", error)
         }
     }
 
     func product(_ id: String) -> Product? { products.first { $0.id == id } }
 
+    /// Buy the selected plan id. Reloads products if needed and always surfaces a message on failure.
+    func purchase(productID: String) async {
+        if purchasing { return }
+        if product(productID) == nil {
+            await loadProducts()
+        }
+        guard let product = product(productID) else {
+            message = String(localized: "This plan could not be loaded from the App Store. Confirm \(productID) exists in App Store Connect and try again.")
+            return
+        }
+        await purchase(product)
+    }
+
     func purchase(_ product: Product) async {
         purchasing = true
+        message = nil
         defer { purchasing = false }
         do {
             let result = try await product.purchase()
@@ -74,12 +95,13 @@ final class StoreService: ObservableObject {
             case .pending:
                 message = String(localized: "Purchase pending approval.")
             case .userCancelled:
-                message = nil
+                message = String(localized: "Purchase cancelled.")
             @unknown default:
-                break
+                message = String(localized: "Purchase did not complete.")
             }
         } catch {
             message = String(localized: "Purchase failed. \(error.localizedDescription)")
+            Log.e("StoreKit purchase failed", error)
         }
     }
 

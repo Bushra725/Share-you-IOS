@@ -16,6 +16,8 @@ struct SafeboxView: View {
         }
         .navigationTitle(Text("Safebox"))
         .navigationBarTitleDisplayMode(.inline)
+        // Match Android: leaving Safebox (back, tab change, etc.) always re-locks.
+        .onDisappear { vault.lock() }
     }
 }
 
@@ -122,7 +124,7 @@ struct VaultUnlockView: View {
                     if vault.hasPattern { Button("Use pattern") { usePattern = true; error = nil } }
                 }
                 if vault.biometricEnabled, let name = Vault.biometryName {
-                    Button { Task { _ = await vault.unlockWithBiometrics() } } label: {
+                    Button { Task { await tryBiometrics(automatic: false) } } label: {
                         Label("Unlock with \(name)", systemImage: name == "Face ID" ? "faceid" : "touchid")
                     }
                 }
@@ -133,9 +135,23 @@ struct VaultUnlockView: View {
             .padding(.bottom)
         }
         .task {
-            if vault.biometricEnabled && Vault.biometryName != nil { _ = await vault.unlockWithBiometrics() }
+            // Offer biometrics, but ignore an instant "success" right after the phone unlock
+            // (same guard as Android) so Safebox still truly asks every visit.
+            if vault.biometricEnabled && Vault.biometryName != nil {
+                await tryBiometrics(automatic: true)
+            }
         }
         .sheet(isPresented: $showRecovery) { RecoveryView() }
+    }
+
+    private func tryBiometrics(automatic: Bool) async {
+        let started = Date()
+        let ok = await vault.unlockWithBiometrics()
+        if automatic && ok && Date().timeIntervalSince(started) < 0.4 {
+            vault.lockNow()
+            return
+        }
+        if !ok && !automatic { error = String(localized: "Biometrics failed. Use your PIN.") }
     }
 }
 
@@ -292,7 +308,7 @@ struct VaultContentView: View {
                     .accessibilityLabel(Text("Add"))
                 Menu {
                     Button { showSettings = true } label: { Label("Safebox settings", systemImage: "gearshape") }
-                    Button { vault.lock() } label: { Label("Lock now", systemImage: "lock") }
+                    Button { vault.lockNow() } label: { Label("Lock now", systemImage: "lock") }
                 } label: { Image(systemName: "ellipsis.circle") }
                     .accessibilityLabel(Text("More"))
             }
@@ -315,7 +331,12 @@ struct VaultContentView: View {
             }
         }
         .sheet(isPresented: $showSettings) { VaultSettingsView() }
-        .fullScreenCover(item: $preview) { url in QuickLookView(urls: [url]).ignoresSafeArea() }
+        .fullScreenCover(item: $preview, onDismiss: { vault.suppressAutoLock = false }) { url in
+            QuickLookView(urls: [url]).ignoresSafeArea()
+        }
+        .onChange(of: preview) { url in
+            vault.suppressAutoLock = url != nil
+        }
     }
 
     private func addTapped(_ go: () -> Void) {

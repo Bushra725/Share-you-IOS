@@ -6,6 +6,8 @@ struct RootView: View {
     @EnvironmentObject private var ads: AdsManager
     @EnvironmentObject private var remoteConfig: RemoteConfigService
     @EnvironmentObject private var video: VideoController
+    /// First-launch branded splash (same ~1.8s hold as Android).
+    @State private var introSplash = true
 
     var body: some View {
         ZStack {
@@ -28,12 +30,20 @@ struct RootView: View {
                     .animation(.spring(), value: router.toast)
                     .allowsHitTesting(false)
             }
-            if ads.splash {
-                SplashView().transition(.opacity).task { await ads.runColdSplash() }
+            if introSplash || ads.splash {
+                SplashView()
+                    .transition(.opacity)
+                    .task(id: ads.splash) {
+                        if ads.splash { await ads.runColdSplash() }
+                    }
             }
             if remoteConfig.updateRequired {
                 ForceUpdateView()
             }
+        }
+        .task {
+            try? await Task.sleep(nanoseconds: 1_800_000_000)
+            withAnimation(.easeOut(duration: 0.25)) { introSplash = false }
         }
         .preferredColorScheme(prefs.colorScheme)
         .sheet(isPresented: $router.showPaywall) { PaywallView() }
@@ -43,9 +53,17 @@ struct RootView: View {
         }
         .onChange(of: router.homePath.count) { _ in ads.noteAction() }
         .onChange(of: router.filesPath.count) { _ in ads.noteAction() }
-        .onChange(of: router.toolsPath.count) { _ in ads.noteAction() }
+        .onChange(of: router.toolsPath.count) { count in
+            ads.noteAction()
+            // Left Safebox (or any tools push) — always re-lock.
+            if count == 0 { Vault.shared.lock() }
+        }
         .onChange(of: router.mePath.count) { _ in ads.noteAction() }
-        .onChange(of: router.tab) { _ in ads.noteAction() }
+        .onChange(of: router.tab) { _ in
+            ads.noteAction()
+            // Tab switch keeps Tools' NavigationStack alive; force lock so reopen asks again.
+            Vault.shared.lock()
+        }
     }
 
     private func tab<Content: View>(path: Binding<NavigationPath>, @ViewBuilder root: () -> Content) -> some View {
@@ -77,21 +95,6 @@ struct RootView: View {
         case .music: PlayerTabView()
         case .videos: CategoryFilesView(category: .videos)
         }
-    }
-}
-
-struct SplashView: View {
-    var body: some View {
-        ZStack {
-            Color("LaunchBackground").ignoresSafeArea()
-            VStack(spacing: 16) {
-                Image("AppLogo").resizable().frame(width: 120, height: 120).clipShape(RoundedRectangle(cornerRadius: 28))
-                Text(AppConfig.appName).font(.title.bold()).foregroundStyle(.white)
-                ProgressView().tint(.white)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("Loading"))
     }
 }
 
