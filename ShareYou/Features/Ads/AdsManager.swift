@@ -224,8 +224,11 @@ final class AdsManager: NSObject, ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 self.loadingInterstitial = false
-                if let ad { self.interstitial = ad; self.flushPending() }
-                else { Log.d("Interstitial failed: \(error?.localizedDescription ?? "")") }
+                if let ad {
+                    Self.attachPaidTracking(ad, unitID: AdConfig.interstitial, format: "interstitial")
+                    self.interstitial = ad
+                    self.flushPending()
+                } else { Log.d("Interstitial failed: \(error?.localizedDescription ?? "")") }
             }
         }
     }
@@ -275,6 +278,9 @@ final class AdsManager: NSObject, ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 self.loadingAppOpen = false
+                if let ad {
+                    Self.attachPaidTracking(ad, unitID: AdConfig.appOpen, format: "app_open")
+                }
                 self.appOpen = ad
                 if ad != nil && self.pendingAppOpen { self.flushPending() }
             }
@@ -311,6 +317,9 @@ final class AdsManager: NSObject, ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 self.loadingRewarded = false
+                if let ad {
+                    Self.attachPaidTracking(ad, unitID: AdConfig.rewarded, format: "rewarded")
+                }
                 self.rewarded = ad
                 if ad == nil { Log.d("Rewarded failed: \(error?.localizedDescription ?? "")") }
             }
@@ -354,6 +363,31 @@ final class AdsManager: NSObject, ObservableObject {
         prepareRewarded()
         loadAppOpen()
         flushPending()
+    }
+
+    // MARK: - Adjust ad revenue
+
+    /// Shared by fullscreen ads + banner/native in `AdViews`.
+    static func trackPaidImpression(_ value: AdValue, unitID: String, format: String) {
+        let micros = value.value.multiplying(byPowerOf10: 6).int64Value
+        AdjustService.trackAdRevenue(
+            valueMicros: micros,
+            currency: value.currencyCode,
+            adUnitID: unitID,
+            format: format
+        )
+    }
+
+    private static func attachPaidTracking(_ ad: InterstitialAd, unitID: String, format: String) {
+        ad.paidEventHandler = { trackPaidImpression($0, unitID: unitID, format: format) }
+    }
+
+    private static func attachPaidTracking(_ ad: AppOpenAd, unitID: String, format: String) {
+        ad.paidEventHandler = { trackPaidImpression($0, unitID: unitID, format: format) }
+    }
+
+    private static func attachPaidTracking(_ ad: RewardedAd, unitID: String, format: String) {
+        ad.paidEventHandler = { trackPaidImpression($0, unitID: unitID, format: format) }
     }
 }
 

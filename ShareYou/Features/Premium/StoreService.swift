@@ -154,6 +154,7 @@ final class StoreService: ObservableObject {
     func grantFromAd() {
         Prefs.shared.premiumAdUntil = Date().addingTimeInterval(Self.adUnlockSeconds)
         refresh()
+        AdjustService.trackStartTrial(rewardType: "premium_24h")
     }
 
     /// Debug builds only: test Premium screens without a sandbox account.

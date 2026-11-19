@@ -49,7 +49,10 @@ APP_STORE_ID = 0000000000
 // Developer page for "More apps" — OCCESS STUDIO LLC App Store
 MORE_APPS_URL = https:/$()/apps.apple.com/us/developer/occess-studio-llc/id1767799636
 
-
+// ---- Adjust (attribution)
+ADJUST_APP_TOKEN = 3xsqwfivifi8
+ADJUST_EVENT_START_TRIAL = 8vleqp
+ADJUST_EVENT_AD_REVENUE = h09t4e
 
 // Account-specific overrides (Team ID, real AdMob ids). Optional, git-ignored.
 #include? "Secrets.xcconfig"

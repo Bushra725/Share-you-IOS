@@ -27,6 +27,7 @@ PACKAGES = [
     ("ump", "https://github.com/googleads/swift-package-manager-google-user-messaging-platform.git", "3.0.0",
      ["GoogleUserMessagingPlatform"]),
     ("lottie", "https://github.com/airbnb/lottie-ios.git", "4.5.0", ["Lottie"]),
+    ("adjust", "https://github.com/adjust/ios_sdk.git", "5.0.0", ["AdjustSdk"]),
 ]
 
 CONFIG_FILES = ["Base.xcconfig", "Debug.xcconfig", "Release.xcconfig", "Secrets.example.xcconfig",
