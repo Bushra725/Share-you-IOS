@@ -227,11 +227,14 @@ def main():
 \t\t\tbuildSettings = {{
 \t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 \t\t\t\tASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+\t\t\t\tCURRENT_PROJECT_VERSION = 183;
 \t\t\t\tGENERATE_INFOPLIST_FILE = NO;
+\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 16.0;
 \t\t\t\tLD_RUNPATH_SEARCH_PATHS = (
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/Frameworks",
 \t\t\t\t);
+\t\t\t\tMARKETING_VERSION = 1.0.0;
 \t\t\t}};
 \t\t\tname = {name};
 \t\t}};""")
