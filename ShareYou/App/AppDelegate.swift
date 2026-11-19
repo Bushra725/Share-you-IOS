@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         // App Check provider must be set BEFORE FirebaseApp.configure().
         FirebaseBootstrap.configure()
+        AdjustService.configure()
 
         PushService.shared.attach(application: application)
         return true

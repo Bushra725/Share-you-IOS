@@ -61,7 +61,7 @@ struct MusicListView: View {
                 }
             }
         }
-        .searchable(text: $search)
+        .safeAreaInset(edge: .top, spacing: 0) { PlayerSearchBar(text: $search) }
         .refreshable { await load() }
         .task { await load() }
     }
@@ -135,24 +135,30 @@ struct NowPlayingView: View {
                 .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
             .padding(.horizontal)
-            HStack(spacing: 36) {
+            HStack(spacing: 0) {
                 Button { music.shuffle.toggle() } label: { Image(systemName: "shuffle").foregroundStyle(music.shuffle ? Brand.cyan3 : .secondary) }
                     .accessibilityLabel(Text("Shuffle"))
-                Button { music.previous() } label: { Image(systemName: "backward.fill").font(.title) }
+                    .frame(maxWidth: .infinity)
+                Button { music.previous() } label: { Image(systemName: "backward.fill").font(.title2) }
                     .accessibilityLabel(Text("Previous"))
+                    .frame(maxWidth: .infinity)
                 Button { music.toggle() } label: {
-                    Image(systemName: music.isPlaying ? "pause.circle.fill" : "play.circle.fill").font(.system(size: 64))
+                    Image(systemName: music.isPlaying ? "pause.circle.fill" : "play.circle.fill").font(.system(size: 56))
                 }
                 .accessibilityLabel(music.isPlaying ? Text("Pause") : Text("Play"))
-                Button { music.next() } label: { Image(systemName: "forward.fill").font(.title) }
+                .frame(maxWidth: .infinity)
+                Button { music.next() } label: { Image(systemName: "forward.fill").font(.title2) }
                     .accessibilityLabel(Text("Next"))
+                    .frame(maxWidth: .infinity)
                 Button { music.cycleRepeat() } label: {
                     Image(systemName: music.repeatMode == .one ? "repeat.1" : "repeat")
                         .foregroundStyle(music.repeatMode == .off ? .secondary : Brand.cyan3)
                 }
                 .accessibilityLabel(Text("Repeat"))
+                .frame(maxWidth: .infinity)
             }
             .foregroundStyle(.primary)
+            .padding(.horizontal, 8)
             Button(role: .destructive) { music.close(); dismiss() } label: { Label("Stop & close player", systemImage: "xmark.circle") }
             Spacer()
         }
@@ -171,6 +177,7 @@ struct VideoLibraryView: View {
     @State private var status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
     @State private var showUnlock = false
     @State private var tick = 0
+    @State private var search = ""
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 4)]
 
@@ -178,11 +185,14 @@ struct VideoLibraryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 pipCard
-                if !files.isEmpty {
+                if !filteredFiles.isEmpty {
                     Text("Share you files").font(.headline).padding(.horizontal)
                     LazyVGrid(columns: columns, spacing: 4) {
-                        ForEach(files) { f in
-                            Button { video.open(.file(f.url)) } label: {
+                        ForEach(filteredFiles) { f in
+                            Button {
+                                let queue = filteredFiles.map { VideoController.VideoSource.file($0.url) }
+                                video.openQueue(queue, startAt: queue.firstIndex(of: .file(f.url)) ?? 0)
+                            } label: {
                                 FileThumb(url: f.url, name: f.name, size: 110)
                                     .overlay(alignment: .bottomLeading) { Text(f.name).font(.caption2).lineLimit(1).padding(4).background(.ultraThinMaterial) }
                             }
@@ -195,7 +205,10 @@ struct VideoLibraryView: View {
                 case .authorized, .limited:
                     LazyVGrid(columns: columns, spacing: 4) {
                         ForEach(assets, id: \.localIdentifier) { a in
-                            Button { video.open(.asset(a.localIdentifier)) } label: { AssetThumb(asset: a, side: 110, showDuration: true) }
+                            Button {
+                                let queue = assets.map { VideoController.VideoSource.asset($0.localIdentifier) }
+                                video.openQueue(queue, startAt: queue.firstIndex(of: .asset(a.localIdentifier)) ?? 0)
+                            } label: { AssetThumb(asset: a, side: 110, showDuration: true) }
                         }
                     }
                     .padding(.horizontal, 4)
@@ -217,6 +230,7 @@ struct VideoLibraryView: View {
             }
             .padding(.bottom)
         }
+        .safeAreaInset(edge: .top, spacing: 0) { PlayerSearchBar(text: $search) }
         .task {
             files = await FileScanner.allFiles().filter { $0.category == .videos }
             loadAssets()
@@ -247,6 +261,10 @@ struct VideoLibraryView: View {
         .id(tick)
     }
 
+    private var filteredFiles: [LocalFile] {
+        search.isEmpty ? files : files.filter { $0.name.localizedCaseInsensitiveContains(search) }
+    }
+
     private func loadAssets() {
         guard status == .authorized || status == .limited else { return }
         let options = PHFetchOptions()
@@ -256,6 +274,27 @@ struct VideoLibraryView: View {
         var list: [PHAsset] = []
         result.enumerateObjects { a, _, _ in list.append(a) }
         assets = list
+    }
+}
+
+struct PlayerSearchBar: View {
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("Search", text: $text)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            if !text.isEmpty {
+                Button { text = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                    .accessibilityLabel(Text("Clear search"))
+            }
+        }
+        .padding(10)
+        .background(Brand.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.horizontal)
+        .padding(.bottom, 8)
     }
 }
 

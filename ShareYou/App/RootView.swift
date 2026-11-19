@@ -47,7 +47,7 @@ struct RootView: View {
         }
         .preferredColorScheme(prefs.colorScheme)
         .sheet(isPresented: $router.showPaywall) { PaywallView() }
-        .fullScreenCover(item: $video.presented) { src in VideoPlayerScreen(source: src) }
+        .fullScreenCover(item: $video.presented) { _ in VideoPlayerScreen() }
         .fullScreenCover(isPresented: Binding(get: { !prefs.onboarded }, set: { prefs.onboarded = !$0 })) {
             OnboardingView()
         }

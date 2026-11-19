@@ -53,6 +53,12 @@
 	<string>$(ADMOB_APP_OPEN_ID)</string>
 	<key>SYAdNativeID</key>
 	<string>$(ADMOB_NATIVE_ID)</string>
+	<key>SYAdjustAppToken</key>
+	<string>$(ADJUST_APP_TOKEN)</string>
+	<key>SYAdjustEventStartTrial</key>
+	<string>$(ADJUST_EVENT_START_TRIAL)</string>
+	<key>SYAdjustEventAdRevenue</key>
+	<string>$(ADJUST_EVENT_AD_REVENUE)</string>
 
 	<!-- Google Sign-In -->
 	<key>GIDClientID</key>

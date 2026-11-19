@@ -34,6 +34,9 @@ private struct BannerRepresentable: UIViewRepresentable {
         banner.adUnitID = AdConfig.banner
         banner.rootViewController = UIHelpers.topViewController()
         banner.delegate = context.coordinator
+        banner.paidEventHandler = { value in
+            AdsManager.trackPaidImpression(value, unitID: AdConfig.banner, format: "banner")
+        }
         banner.load(Request())
         return banner
     }
@@ -83,7 +86,12 @@ final class NativeAdLoader: NSObject, ObservableObject, NativeAdLoaderDelegate {
     }
 
     nonisolated func adLoader(_ adLoader: AdLoader, didReceive nativeAd: NativeAd) {
-        Task { @MainActor in self.ad = nativeAd }
+        Task { @MainActor in
+            nativeAd.paidEventHandler = { value in
+                AdsManager.trackPaidImpression(value, unitID: AdConfig.native, format: "native")
+            }
+            self.ad = nativeAd
+        }
     }
 
     nonisolated func adLoader(_ adLoader: AdLoader, didFailToReceiveAdWithError error: Error) {

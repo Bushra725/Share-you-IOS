@@ -15,6 +15,8 @@ final class PcServer: @unchecked Sendable {
     /// Called on the server queue to read the current lists.
     var snapshot: @Sendable () -> (shared: [FileEntry], received: [FileEntry], name: String) = { ([], [], "iPhone") }
     var onReceived: @Sendable (URL, String, Int64) -> Void = { _, _, _ in }
+    /// name, bytes written, expected size. Fired while a PC upload is still streaming.
+    var onReceiveProgress: @Sendable (String, Int64, Int64) -> Void = { _, _, _ in }
     var onLog: @Sendable (String) -> Void = { _ in }
 
     private let token: String
@@ -103,7 +105,9 @@ final class PcServer: @unchecked Sendable {
             onLog(String(localized: "PC downloaded \(f.name)"))
         case ("POST", "/upload"):
             do {
-                let (url, name, size) = try await http.receiveUpload(into: AppFiles.fromPC)
+                let (url, name, size) = try await http.receiveUpload(into: AppFiles.fromPC) { name, written, total in
+                    self.onReceiveProgress(name, written, total)
+                }
                 onReceived(url, name, size)
                 onLog(String(localized: "Received \(name) from PC"))
                 try await http.respondJSON(["ok": true])
@@ -229,7 +233,8 @@ final class HTTPConnection: @unchecked Sendable {
     }
 
     /// Streams a multipart upload straight to disk (works for multi-GB files).
-    func receiveUpload(into dir: URL) async throws -> (URL, String, Int64) {
+    /// `onProgress` reports bytes written against the expected file size while the body is still arriving.
+    func receiveUpload(into dir: URL, onProgress: (@Sendable (String, Int64, Int64) -> Void)? = nil) async throws -> (URL, String, Int64) {
         let contentType = currentHeaders["content-type"] ?? ""
         guard let bRange = contentType.range(of: "boundary=") else { throw UploadError.noFile }
         var boundary = String(contentType[bRange.upperBound...])
@@ -260,6 +265,8 @@ final class HTTPConnection: @unchecked Sendable {
             if let end = rest.firstIndex(of: "\"") { filename = String(rest[..<end]) }
         }
         let name = FileUtils.safeName((filename as NSString).lastPathComponent)
+        // Content-Length covers the whole multipart body. What is left after the part headers is the file plus a short closing boundary.
+        let expected = total > 0 ? max(Int64(1), total - consumed) : Int64(0)
 
         // 2) File body until "\r\n--boundary".
         let category = FileUtils.categoryOf(mime: FileUtils.mimeOf(name), name: name)
@@ -275,6 +282,7 @@ final class HTTPConnection: @unchecked Sendable {
                     let chunk = buffer[buffer.startIndex..<r.lowerBound]
                     try out.write(contentsOf: chunk)
                     written += Int64(chunk.count)
+                    onProgress?(name, written, expected > 0 ? expected : written)
                     break
                 }
                 // Keep a tail long enough to hold a delimiter split across reads.
@@ -284,6 +292,7 @@ final class HTTPConnection: @unchecked Sendable {
                     let chunk = buffer.prefix(cut)
                     try out.write(contentsOf: chunk)
                     written += Int64(chunk.count)
+                    onProgress?(name, written, expected > 0 ? expected : written)
                     buffer = Data(buffer.suffix(keep))
                 }
                 try await more()

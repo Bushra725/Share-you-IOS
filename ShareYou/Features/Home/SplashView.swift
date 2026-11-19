@@ -15,38 +15,37 @@ struct SplashView: View {
         ZStack {
             Color.white.ignoresSafeArea()
 
-            VStack(spacing: 16) {
-                Image("AppLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 104, height: 104)
-                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-                    .shadow(color: Brand.cyan3.opacity(0.28), radius: 18, y: 8)
-                    .scaleEffect(iconScale)
-                    .opacity(iconAlpha)
+            // Logo sits on the true center of the screen.
+            Image("AppLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 104, height: 104)
+                .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                .shadow(color: Brand.cyan3.opacity(0.28), radius: 18, y: 8)
+                .scaleEffect(iconScale)
+                .opacity(iconAlpha)
+                .accessibilityHidden(true)
+
+            // App name is directly under the logo. The Lottie clip drives the pop.
+            ZStack {
+                LottieView(animation: .named("splash_name"))
+                    .playbackMode(playbackMode)
+                    .getRealtimeAnimationProgress(playName ? $nameProgress : nil)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 72)
+                    .opacity(0)
+                    .allowsHitTesting(false)
                     .accessibilityHidden(true)
 
-                ZStack {
-                    // Same Lottie as Android `splash_name` — drives the name pop curve.
-                    // Kept invisible: Lottie text layers don't ship a reliable font on iOS.
-                    LottieView(animation: .named("splash_name"))
-                        .playbackMode(playbackMode)
-                        .getRealtimeAnimationProgress(playName ? $nameProgress : nil)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 72)
-                        .opacity(0)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-
-                    Text("Share you")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundStyle(Color(hex: 0x1A1A1A))
-                        .scaleEffect(playName ? namePop(nameProgress) : 0.2)
-                        .opacity(playName ? nameAlpha(nameProgress) : 0)
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 72)
+                Text("Share you")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(Color(hex: 0x1A1A1A))
+                    .scaleEffect(playName ? namePop(nameProgress) : 0.2)
+                    .opacity(playName ? nameAlpha(nameProgress) : 0)
             }
+            .frame(maxWidth: .infinity)
+            .frame(height: 72)
+            .offset(y: 104)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("Share you"))
