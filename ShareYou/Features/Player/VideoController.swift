@@ -9,8 +9,13 @@ final class VideoController: NSObject, ObservableObject {
 
     @Published private(set) var isPlaying = false
     @Published var presented: VideoSource?
+    @Published private(set) var current: VideoSource?
+    @Published private(set) var canGoBack = false
+    @Published private(set) var canGoForward = false
 
     let player = AVPlayer()
+    private var queue: [VideoSource] = []
+    private var index = 0
     private var rateObserver: NSKeyValueObservation?
 
     enum VideoSource: Identifiable, Equatable {
@@ -33,8 +38,33 @@ final class VideoController: NSObject, ObservableObject {
     }
 
     func open(_ source: VideoSource) {
+        openQueue([source], startAt: 0)
+    }
+
+    func openQueue(_ items: [VideoSource], startAt: Int) {
+        guard items.indices.contains(startAt) else { return }
         MusicController.shared.pause()
-        presented = source
+        queue = items
+        index = startAt
+        current = items[startAt]
+        refreshStepFlags()
+        if presented == nil { presented = items[startAt] }
+    }
+
+    func next() { step(1) }
+    func previous() { step(-1) }
+
+    private func step(_ delta: Int) {
+        let nextIndex = index + delta
+        guard queue.indices.contains(nextIndex) else { return }
+        index = nextIndex
+        current = queue[nextIndex]
+        refreshStepFlags()
+    }
+
+    private func refreshStepFlags() {
+        canGoBack = index > 0
+        canGoForward = index + 1 < queue.count
     }
 
     func load(_ source: VideoSource) async {
@@ -59,6 +89,11 @@ final class VideoController: NSObject, ObservableObject {
     func stop() {
         player.pause()
         player.replaceCurrentItem(with: nil)
+        queue = []
+        index = 0
+        current = nil
+        canGoBack = false
+        canGoForward = false
         presented = nil
     }
 
@@ -77,7 +112,6 @@ final class VideoController: NSObject, ObservableObject {
 
 /// Full-screen system player: speed menu (0.5×–2×), AirPlay, scrubbing, Picture in Picture (when unlocked).
 struct VideoPlayerScreen: View {
-    let source: VideoController.VideoSource
     @EnvironmentObject private var video: VideoController
     @Environment(\.dismiss) private var dismiss
 
@@ -85,15 +119,32 @@ struct VideoPlayerScreen: View {
         PlayerControllerView(player: video.player, allowPiP: DayUnlock.player())
             .ignoresSafeArea()
             .background(Color.black)
-            .overlay(alignment: .topLeading) {
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark").font(.headline).padding(12).background(.ultraThinMaterial, in: Circle())
+            .overlay(alignment: .top) {
+                HStack(spacing: 12) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark").font(.headline).padding(12).background(.ultraThinMaterial, in: Circle())
+                    }
+                    .accessibilityLabel(Text("Close"))
+                    Spacer(minLength: 8)
+                    Button { video.previous() } label: {
+                        Image(systemName: "backward.fill").font(.headline).padding(12).background(.ultraThinMaterial, in: Circle())
+                    }
+                    .disabled(!video.canGoBack)
+                    .accessibilityLabel(Text("Previous"))
+                    Button { video.next() } label: {
+                        Image(systemName: "forward.fill").font(.headline).padding(12).background(.ultraThinMaterial, in: Circle())
+                    }
+                    .disabled(!video.canGoForward)
+                    .accessibilityLabel(Text("Next"))
                 }
-                .accessibilityLabel(Text("Close"))
-                .padding()
+                .padding(.horizontal)
+                .padding(.top, 8)
             }
             .task {
                 OrientationLock.allowLandscape(true)
+            }
+            .task(id: video.current?.id) {
+                guard let source = video.current else { return }
                 await video.load(source)
             }
             .onDisappear { video.closed() }

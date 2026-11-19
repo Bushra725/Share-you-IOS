@@ -12,6 +12,7 @@ final class PcShare: ObservableObject {
     @Published private(set) var token = ""
     @Published private(set) var shared: [ShareItem] = []
     @Published private(set) var received: [ShareItem] = []
+    @Published private(set) var incoming: [IncomingPCFile] = []
     @Published private(set) var log: [String] = []
     @Published var error: String?
     @Published private(set) var transfersDone = 0
@@ -30,6 +31,9 @@ final class PcShare: ObservableObject {
         }
         s.onReceived = { [weak self] url, name, size in
             Task { @MainActor in self?.didReceive(url: url, name: name, size: size) }
+        }
+        s.onReceiveProgress = { [weak self] name, written, total in
+            Task { @MainActor in self?.noteIncoming(name: name, written: written, total: total) }
         }
         s.onLog = { [weak self] msg in
             Task { @MainActor in self?.append(msg) }
@@ -65,6 +69,7 @@ final class PcShare: ObservableObject {
         running = false
         url = nil
         altURLs = []
+        incoming = []
         UIApplication.shared.isIdleTimerDisabled = false
         endBackgroundTask()
     }
@@ -97,7 +102,21 @@ final class PcShare: ObservableObject {
         updateSnapshot()
     }
 
+    private func noteIncoming(name: String, written: Int64, total: Int64) {
+        if let i = incoming.firstIndex(where: { $0.name == name }) {
+            let previous = incoming[i].fraction
+            let next = total > 0 ? min(0.99, Double(written) / Double(total)) : 0
+            if total > 0, next - previous < 0.01 { return }
+            if total <= 0, written - incoming[i].written < 64 * 1024 { return }
+            incoming[i].written = written
+            incoming[i].total = total
+        } else {
+            incoming.append(IncomingPCFile(name: name, written: written, total: total))
+        }
+    }
+
     private func didReceive(url: URL, name: String, size: Int64) {
+        incoming.removeAll { $0.name == name }
         received.append(ShareItem(url: url, name: name, size: size))
         HistoryStore.shared.add(name: name, size: size, mime: FileUtils.mimeOf(name), sent: false, peer: "PC", url: url)
         transfersDone += 1
@@ -131,11 +150,26 @@ final class PcShare: ObservableObject {
     }
 }
 
+struct IncomingPCFile: Identifiable {
+    let id: String
+    var name: String
+    var written: Int64
+    var total: Int64
+    init(name: String, written: Int64, total: Int64) {
+        self.id = name
+        self.name = name
+        self.written = written
+        self.total = total
+    }
+    var fraction: Double { total > 0 ? min(0.99, Double(written) / Double(total)) : 0 }
+}
+
 struct PcShareView: View {
     @EnvironmentObject private var pc: PcShare
     @EnvironmentObject private var ads: AdsManager
     @State private var showSources = false
     @State private var pendingAdd: [ShareItem] = []
+    @State private var preview: URL?
 
     var body: some View {
         List {
@@ -175,26 +209,53 @@ struct PcShareView: View {
             Section {
                 Button { showSources = true } label: { Label("Add files for the PC", systemImage: "plus.circle.fill") }
                 ForEach(pc.shared) { item in
-                    HStack {
-                        FileThumb(url: item.url, name: item.name, size: 36)
-                        Text(item.name).lineLimit(1)
-                        Spacer()
-                        Text(FileUtils.formatSize(item.size)).font(.caption).foregroundStyle(.secondary)
+                    Button { preview = item.url } label: {
+                        HStack {
+                            FileThumb(url: item.url, name: item.name, size: 36)
+                            Text(item.name).lineLimit(1).foregroundStyle(.primary)
+                            Spacer()
+                            Text(FileUtils.formatSize(item.size)).font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                     .swipeActions { Button(role: .destructive) { pc.removeShared(item) } label: { Label("Remove", systemImage: "trash") } }
                 }
             } header: { Text("Shared with the PC") }
 
+            if !pc.incoming.isEmpty {
+                Section("Receiving") {
+                    ForEach(pc.incoming) { item in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(item.name).lineLimit(1)
+                                Spacer()
+                                Text(item.total > 0 ? "\(Int(item.fraction * 100))%" : FileUtils.formatSize(item.written))
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                            if item.total > 0 {
+                                ProgressView(value: item.fraction).tint(Brand.cyan3)
+                            } else {
+                                ProgressView().tint(Brand.cyan3)
+                            }
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityValue(Text("\(Int(item.fraction * 100)) percent"))
+                    }
+                }
+            }
+
             Section {
-                if pc.received.isEmpty {
+                if pc.received.isEmpty && pc.incoming.isEmpty {
                     Text("Drag files onto the page on your PC to send them here.").foregroundStyle(.secondary)
                 }
                 ForEach(pc.received) { item in
-                    HStack {
-                        FileThumb(url: item.url, name: item.name, size: 36)
-                        Text(item.name).lineLimit(1)
-                        Spacer()
-                        Text(FileUtils.formatSize(item.size)).font(.caption).foregroundStyle(.secondary)
+                    Button { preview = item.url } label: {
+                        HStack {
+                            FileThumb(url: item.url, name: item.name, size: 36)
+                            Text(item.name).lineLimit(1).foregroundStyle(.primary)
+                            Spacer()
+                            Text(FileUtils.formatSize(item.size)).font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                 }
             } header: { Text("Received from PC") }
@@ -234,6 +295,9 @@ struct PcShareView: View {
                     .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showSources = false } } }
             }
             .presentationDetents([.medium])
+        }
+        .fullScreenCover(item: $preview) { url in
+            QuickLookView(urls: [url]).ignoresSafeArea()
         }
     }
 }

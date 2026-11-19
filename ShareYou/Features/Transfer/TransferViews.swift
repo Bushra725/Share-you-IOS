@@ -40,6 +40,7 @@ struct SendView: View {
             }
         }
         .navigationTitle(Text("Select files"))
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if !selection.items.isEmpty {
                 ToolbarItem(placement: .cancellationAction) { Button("Clear") { selection.clear() } }
@@ -78,7 +79,9 @@ struct FileSourceButtons: View {
     var body: some View {
         Button { showMedia = true } label: { Label("Photos & videos", systemImage: "photo.on.rectangle.angled") }
             .sheet(isPresented: $showMedia) {
-                MediaPicker { items, _ in selection.add(items) }.ignoresSafeArea()
+                MediaPicker { items, _ in selection.add(items) }
+                    .ignoresSafeArea(edges: .bottom)
+                    .stablePickerSheet()
             }
         Button { showFiles = true } label: { Label("Any file (Files app)", systemImage: "folder") }
             .sheet(isPresented: $showFiles) {
@@ -86,11 +89,13 @@ struct FileSourceButtons: View {
                     let staged = urls.compactMap { try? AppFiles.stage($0) }
                     selection.add(staged.map { ShareItem(url: $0) })
                 }
-                .ignoresSafeArea()
+                .ignoresSafeArea(edges: .bottom)
+                .stablePickerSheet()
             }
         Button { showLocal = true } label: { Label("Share you files (received, music, documents)", systemImage: "tray.full") }
             .sheet(isPresented: $showLocal) {
                 NavigationStack { LocalFilePicker() }
+                    .stablePickerSheet()
             }
     }
 }
@@ -510,6 +515,28 @@ struct TransferRow: View {
         case .failed: Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.red)
         case .active: Text("\(Int(item.progress * 100))%").font(.caption.monospacedDigit())
         case .waiting: Image(systemName: "clock").foregroundStyle(.secondary)
+        }
+    }
+}
+
+extension View {
+    /// One full-height detent. A downward swipe dismisses the picker instead of stretching it over the status bar.
+    func stablePickerSheet() -> some View {
+        modifier(StablePickerSheet())
+    }
+}
+
+private struct StablePickerSheet: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 16.4, *) {
+            content
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationContentInteraction(.scrolls)
+        } else {
+            content
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
 }

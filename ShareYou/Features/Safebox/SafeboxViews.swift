@@ -28,14 +28,17 @@ struct PinPad: View {
     var subtitle: LocalizedStringKey? = nil
     var length = 4...8
     var error: String?
+    var showsHeader = true
     let onDone: (String) -> Void
     @State private var pin = ""
 
     var body: some View {
         VStack(spacing: 22) {
-            BrandIconBox(systemName: "lock.fill", size: 64)
-            Text(title).font(.title3.bold())
-            if let subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center) }
+            if showsHeader {
+                BrandIconBox(systemName: "lock.fill", size: 64)
+                Text(title).font(.title3.bold())
+                if let subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center) }
+            }
             HStack(spacing: 14) {
                 ForEach(0..<max(length.lowerBound, pin.count), id: \.self) { i in
                     Circle().fill(i < pin.count ? Brand.cyan3 : Color.gray.opacity(0.3)).frame(width: 14, height: 14)
@@ -109,19 +112,30 @@ struct VaultUnlockView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 12) {
+                BrandIconBox(systemName: "lock.fill", size: 64).padding(.top, 8)
+                Text(usePattern ? "Draw your pattern" : "Enter PIN").font(.title3.bold())
+                Text(usePattern ? "Connect at least 4 dots" : "Enter 4 to 8 digits")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(minHeight: 22)
+                Group {
+                    if usePattern {
+                        PatternLockView { pattern in
+                            if !vault.unlockWithPattern(pattern) { error = String(localized: "Wrong pattern") }
+                        }
+                        .frame(width: 280, height: 280)
+                        if let error { Text(error).foregroundStyle(.red) }
+                    } else {
+                        PinPad(title: "Enter PIN", showsHeader: false, error: error) { pin in
+                            if !vault.unlock(pin: pin) { error = String(localized: "Wrong PIN") }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 420, alignment: .top)
                 if usePattern {
-                    Text("Draw your pattern").font(.title3.bold()).padding(.top)
-                    PatternLockView { pattern in
-                        if !vault.unlockWithPattern(pattern) { error = String(localized: "Wrong pattern") }
-                    }
-                    .frame(width: 280, height: 280)
-                    if let error { Text(error).foregroundStyle(.red) }
                     Button("Use PIN instead") { usePattern = false; error = nil }
-                } else {
-                    PinPad(title: "Enter PIN", error: error) { pin in
-                        if !vault.unlock(pin: pin) { error = String(localized: "Wrong PIN") }
-                    }
-                    if vault.hasPattern { Button("Use pattern") { usePattern = true; error = nil } }
+                } else if vault.hasPattern {
+                    Button("Use pattern") { usePattern = true; error = nil }
                 }
                 if vault.biometricEnabled, let name = Vault.biometryName {
                     Button { Task { await tryBiometrics(automatic: false) } } label: {
