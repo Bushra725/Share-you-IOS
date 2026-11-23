@@ -11,7 +11,21 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
-            TabView(selection: $router.tab) {
+            TabView(selection: Binding(
+                get: { router.tab },
+                set: { tab in
+                    let id: String
+                    switch tab {
+                    case .home: id = "tab_home"
+                    case .files: id = "tab_files"
+                    case .player: id = "tab_player"
+                    case .tools: id = "tab_tools"
+                    case .me: id = "tab_me"
+                    }
+                    AnalyticsService.click(id, screen: "tab_bar")
+                    router.tab = tab
+                }
+            )) {
                 tab(path: $router.homePath) { HomeView() }
                     .tabItem { Label("Home", systemImage: "house.fill") }.tag(AppTab.home)
                 tab(path: $router.filesPath) { FilesView() }
@@ -45,6 +59,8 @@ struct RootView: View {
             try? await Task.sleep(nanoseconds: 1_800_000_000)
             withAnimation(.easeOut(duration: 0.25)) { introSplash = false }
         }
+        .onAppear { AnalyticsService.screen(router.tab.analyticsName) }
+        .onChange(of: router.tab) { tab in AnalyticsService.screen(tab.analyticsName) }
         .preferredColorScheme(prefs.colorScheme)
         .sheet(isPresented: $router.showPaywall) { PaywallView() }
         .fullScreenCover(item: $video.presented) { _ in VideoPlayerScreen() }
@@ -76,25 +92,28 @@ struct RootView: View {
 
     @ViewBuilder
     private func destination(_ route: Route) -> some View {
-        switch route {
-        case .send: SendView()
-        case .receive(let group): ReceiveView(group: group)
-        case .group: GroupShareView()
-        case .connect(let group): ConnectView(group: group)
-        case .pc: PcShareView()
-        case .history: HistoryView()
-        case .settings: SettingsView()
-        case .account: AccountView()
-        case .about: AboutView()
-        case .safebox: SafeboxView()
-        case .converter: ConverterView()
-        case .clean: CleanView()
-        case .category(let c): CategoryFilesView(category: c)
-        case .browser(let url): FolderBrowserView(folder: url)
-        case .largeFiles: LargeFilesView()
-        case .music: PlayerTabView()
-        case .videos: CategoryFilesView(category: .videos)
+        Group {
+            switch route {
+            case .send: SendView()
+            case .receive(let group): ReceiveView(group: group)
+            case .group: GroupShareView()
+            case .connect(let group): ConnectView(group: group)
+            case .pc: PcShareView()
+            case .history: HistoryView()
+            case .settings: SettingsView()
+            case .account: AccountView()
+            case .about: AboutView()
+            case .safebox: SafeboxView()
+            case .converter: ConverterView()
+            case .clean: CleanView()
+            case .category(let c): CategoryFilesView(category: c)
+            case .browser(let url): FolderBrowserView(folder: url)
+            case .largeFiles: LargeFilesView()
+            case .music: PlayerTabView()
+            case .videos: CategoryFilesView(category: .videos)
+            }
         }
+        .onAppear { AnalyticsService.screen(route.analyticsName) }
     }
 }
 
@@ -109,12 +128,15 @@ struct ForceUpdateView: View {
                 Text("A newer version of \(AppConfig.appName) is needed to keep sharing. It only takes a moment.")
                     .multilineTextAlignment(.center).foregroundStyle(.secondary)
                 Button {
+                    AnalyticsService.click("update_now", screen: "force_update")
                     if let url = AppConfig.appStoreURL { openURL(url) }
                 } label: { Text("Update").frame(maxWidth: .infinity) }
                 .buttonStyle(BrandButtonStyle())
             }
             .padding(32)
         }
+        .onAppear { AnalyticsService.log(.forceUpdateShown, ["required": 1]) }
+        .trackScreen("force_update")
     }
 }
 
@@ -134,7 +156,10 @@ struct OnboardingView: View {
                     Text("Pick your avatar").font(.headline)
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 10) {
                         ForEach(0..<Prefs.avatars.count, id: \.self) { i in
-                            Button { prefs.avatar = i } label: {
+                            Button {
+                                AnalyticsService.click("avatar_select", screen: "onboarding", ["avatar_index": i])
+                                prefs.avatar = i
+                            } label: {
                                 Text(Prefs.avatars[i]).font(.largeTitle)
                                     .frame(width: 48, height: 48)
                                     .background(Circle().fill(prefs.avatar == i ? Brand.cyan3.opacity(0.3) : Color.clear))
@@ -156,6 +181,8 @@ struct OnboardingView: View {
                 Button {
                     let trimmed = name.trimmingCharacters(in: .whitespaces)
                     if !trimmed.isEmpty { prefs.deviceName = String(trimmed.prefix(24)) }
+                    AnalyticsService.click("get_started", screen: "onboarding")
+                    AnalyticsService.log(.tutorialComplete)
                     prefs.onboarded = true
                 } label: { Text("Get started").frame(maxWidth: .infinity) }
                 .buttonStyle(BrandButtonStyle())
@@ -163,5 +190,6 @@ struct OnboardingView: View {
             .padding(24)
         }
         .interactiveDismissDisabled()
+        .trackScreen("onboarding")
     }
 }

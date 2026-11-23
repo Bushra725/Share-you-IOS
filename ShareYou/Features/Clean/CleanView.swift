@@ -26,7 +26,10 @@ struct CleanView: View {
                     Label("Clean junk", systemImage: "trash.slash")
                     Spacer()
                     Text(FileUtils.formatSize(cleaner.junkBytes)).foregroundStyle(.secondary)
-                    Button("Clean") { cleaner.cleanJunk(); ads.tryShow(.scanCleaned) }
+                    Button("Clean") {
+                        AnalyticsService.click("clean_junk", screen: "clean")
+                        cleaner.cleanJunk(); ads.tryShow(.scanCleaned)
+                    }
                         .buttonStyle(.bordered).disabled(cleaner.junkBytes == 0)
                 }
             } footer: {
@@ -38,7 +41,10 @@ struct CleanView: View {
                 photosSection
             case .notDetermined:
                 Section {
-                    Button("Allow access") { Task { await cleaner.requestAccess(); await cleaner.scan() } }
+                    Button("Allow access") {
+                        AnalyticsService.click("allow_photos", screen: "clean")
+                        Task { await cleaner.requestAccess(); await cleaner.scan() }
+                    }
                 } footer: { Text("Find duplicate and similar photos, screenshots and large videos.") }
             default:
                 Section {
@@ -63,6 +69,10 @@ struct CleanView: View {
         }
         .confirmationDialog(Text("Delete \(cleaner.selected.count) item(s)?"), isPresented: $confirm, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
+                AnalyticsService.click("delete_confirm", screen: "clean", [
+                    "count": cleaner.selected.count,
+                    "bytes": AnalyticsService.bytes(cleaner.selectedBytes)
+                ])
                 Task {
                     if await cleaner.deleteSelected() { ads.tryShow(.scanCleaned) }
                 }
@@ -75,6 +85,7 @@ struct CleanView: View {
                         message: "Pick every duplicate in one tap. Watch one short video to unlock it until midnight.",
                         icon: "wand.and.stars", perks: ["Smart select keeps the best photo", "Select all in one tap", "Lasts until midnight"]) {
                 DayUnlock.grantCleanSelect()
+                AnalyticsService.log(.featureUnlock, ["feature": "clean_select"])
                 tick += 1
                 pendingSelect?()
                 pendingSelect = nil
@@ -91,15 +102,25 @@ struct CleanView: View {
                 Text("Large videos (\(cleaner.largeVideos.count))").tag(3)
             }
             .pickerStyle(.menu)
+            .onChange(of: section) { value in
+                let name = ["duplicates", "similar", "screenshots", "large_videos"][min(value, 3)]
+                AnalyticsService.click("section", screen: "clean", ["section": name])
+            }
             if cleaner.scanning {
                 ProgressView(value: cleaner.progress) { Text("Scanning photos…") }
             } else {
                 HStack {
                     if section <= 1 {
-                        Button("Smart select") { gated { cleaner.smartSelect() } }
+                        Button("Smart select") {
+                            AnalyticsService.click("smart_select", screen: "clean")
+                            gated { cleaner.smartSelect() }
+                        }
                     }
                     Spacer()
-                    Button("Select all") { gated { cleaner.selectAll(currentAssets) } }
+                    Button("Select all") {
+                        AnalyticsService.click("select_all", screen: "clean")
+                        gated { cleaner.selectAll(currentAssets) }
+                    }
                     UnlockPill(state: store.isPremium ? .premium : (DayUnlock.cleanSelect() ? .unlockedToday : .locked))
                 }
                 .buttonStyle(.borderless)
@@ -147,7 +168,11 @@ struct CleanView: View {
     }
 
     private func gated(_ action: @escaping () -> Void) {
-        if DayUnlock.cleanSelect() { action() } else { pendingSelect = action; showUnlock = true }
+        if DayUnlock.cleanSelect() { action() } else {
+            AnalyticsService.click("unlock_clean", screen: "clean")
+            pendingSelect = action
+            showUnlock = true
+        }
     }
 
     private func grid(_ assets: [PHAsset]) -> some View {

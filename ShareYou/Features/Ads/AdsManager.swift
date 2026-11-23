@@ -93,6 +93,7 @@ final class AdsManager: NSObject, ObservableObject {
         }
         canRequestAds = ConsentInformation.shared.canRequestAds
         privacyOptionsRequired = ConsentInformation.shared.privacyOptionsRequirementStatus == .required
+        AnalyticsService.log(.consentResult, ["can_request_ads": canRequestAds ? 1 : 0])
         startSDKIfAllowed()
         if prefs.appSessions >= 2 { maybeAskTracking(after: 2) }
     }
@@ -126,7 +127,16 @@ final class AdsManager: NSObject, ObservableObject {
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
             guard UIApplication.shared.applicationState == .active, !showingFullScreen, !splash else { return }
             prefs.attAsked = true
-            _ = await ATTrackingManager.requestTrackingAuthorization()
+            let status = await ATTrackingManager.requestTrackingAuthorization()
+            let name: String
+            switch status {
+            case .authorized: name = "authorized"
+            case .denied: name = "denied"
+            case .restricted: name = "restricted"
+            case .notDetermined: name = "not_determined"
+            @unknown default: name = "unknown"
+            }
+            AnalyticsService.log(.attResult, ["status": name])
         }
     }
 
@@ -214,6 +224,7 @@ final class AdsManager: NSObject, ObservableObject {
         actionsSinceAd = 0
         cooldown = RemoteConfigService.shared.interstitialCooldown > 0 ? RemoteConfigService.shared.interstitialCooldown : Double.random(in: 60...90)
         ad.fullScreenContentDelegate = self
+        AnalyticsService.log(.adShow, ["ad_format": "interstitial", "placement": "fullscreen"])
         ad.present(from: vc)
     }
 
@@ -305,6 +316,7 @@ final class AdsManager: NSObject, ObservableObject {
         showingFullScreen = true
         lastShown = Date()
         ad.fullScreenContentDelegate = self
+        AnalyticsService.log(.adShow, ["ad_format": "app_open", "placement": "splash"])
         ad.present(from: vc)
     }
 
@@ -346,6 +358,7 @@ final class AdsManager: NSObject, ObservableObject {
         rewardCallback = onReward
         showingFullScreen = true
         ad.fullScreenContentDelegate = self
+        AnalyticsService.log(.adShow, ["ad_format": "rewarded", "placement": "premium_unlock"])
         ad.present(from: vc) { [weak self] in
             Task { @MainActor in self?.rewardEarned = true }
         }
@@ -354,7 +367,7 @@ final class AdsManager: NSObject, ObservableObject {
     fileprivate func fullScreenDismissed() {
         showingFullScreen = false
         if rewardEarned, let cb = rewardCallback {
-            AnalyticsService.log(.rewardEarned)
+            AnalyticsService.log(.adReward)
             cb()
         }
         rewardEarned = false
@@ -375,6 +388,12 @@ final class AdsManager: NSObject, ObservableObject {
             currency: value.currencyCode,
             adUnitID: unitID,
             format: format
+        )
+        AnalyticsService.logAdImpression(
+            value: value.value.doubleValue,
+            currency: value.currencyCode,
+            format: format,
+            unitID: unitID
         )
     }
 

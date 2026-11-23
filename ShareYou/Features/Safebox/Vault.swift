@@ -81,17 +81,20 @@ final class Vault: ObservableObject {
         try saveIndex()
         isSetUp = true
         isUnlocked = true
+        AnalyticsService.log(.vaultSetup)
     }
 
     func unlock(pin: String) -> Bool {
         guard verify(pin, stored: "vault.pin") else { return false }
         open()
+        if isUnlocked { AnalyticsService.log(.vaultUnlock, ["method": "pin"]) }
         return isUnlocked
     }
 
     func unlockWithPattern(_ pattern: String) -> Bool {
         guard verify(pattern, stored: "vault.pattern") else { return false }
         open()
+        if isUnlocked { AnalyticsService.log(.vaultUnlock, ["method": "pattern"]) }
         return isUnlocked
     }
 
@@ -103,6 +106,7 @@ final class Vault: ObservableObject {
             let ok = try await ctx.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
                                                   localizedReason: String(localized: "Unlock your Safebox"))
             if ok { open() }
+            if ok && isUnlocked { AnalyticsService.log(.vaultUnlock, ["method": "biometric"]) }
             return ok && isUnlocked
         } catch {
             return false
@@ -214,7 +218,7 @@ final class Vault: ObservableObject {
         }.value
         entries.insert(VaultEntry(id: id, name: fileName, mime: FileUtils.mimeOf(fileName), size: size, added: Date()), at: 0)
         try saveIndex()
-        AnalyticsService.log(.vaultAdded)
+        AnalyticsService.log(.vaultAdd)
     }
 
     /// Decrypts to a temporary file for viewing. Temp files are wiped when the Safebox locks.
@@ -235,6 +239,7 @@ final class Vault: ObservableObject {
         let dest = AppFiles.uniqueURL(in: AppFiles.restored, name: entry.name)
         try FileManager.default.moveItem(at: temp, to: dest)
         delete(entry)
+        AnalyticsService.log(.vaultRestore)
         return dest
     }
 

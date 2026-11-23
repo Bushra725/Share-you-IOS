@@ -79,7 +79,9 @@ final class TransferManager: ObservableObject {
             updateNetworkHint()
             beginKeepAlive()
             startTicker()
-            if session.group { AnalyticsService.log(.groupStarted) }
+            if session.networkHint != nil { AnalyticsService.log(.networkHintShown) }
+            if session.group { AnalyticsService.log(.groupCreate) }
+            else { AnalyticsService.log(.receiveStart) }
         case .failed(let error):
             session.busy = false
             if case .posix(let code) = error, code == .EADDRINUSE {
@@ -179,10 +181,12 @@ final class TransferManager: ObservableObject {
             session.hostInfo = info
             beginKeepAlive()
             startTicker()
+            AnalyticsService.log(.connectAttempt, ["method": Self.connectMethod(info), "group": info.group ? 1 : 0])
         } catch {
             cleanupNetwork()
             session.busy = false
             session.error = error.localizedDescription
+            AnalyticsService.log(.connectFailed, ["method": Self.connectMethod(info), "reason": error.localizedDescription])
         }
     }
 
@@ -193,9 +197,11 @@ final class TransferManager: ObservableObject {
         items = []
         finishedCount = 0
         session = SessionState(role: .client, status: String(localized: "Connecting to \(device.name)…"), busy: true)
+        AnalyticsService.log(.connectAttempt, ["method": "nearby", "group": 0])
         guard let pair = await Self.openConnection([device.endpoint], attempts: 3, wifiOnly: false) else {
             session.busy = false
             session.error = String(localized: "Could not reach \(device.name). Keep both screens open and retry.")
+            AnalyticsService.log(.connectFailed, ["method": "nearby", "reason": "unreachable"])
             return
         }
         attach(pair.0, queue: pair.1)
@@ -203,6 +209,13 @@ final class TransferManager: ObservableObject {
         session.status = String(localized: "Connected")
         beginKeepAlive()
         startTicker()
+    }
+
+    private static func connectMethod(_ info: HostInfo) -> String {
+        if info.ssid != nil { return "hotspot" }
+        if info.bonjourName != nil { return "qr_ios" }
+        if info.name == info.ip { return "ip" }
+        return "qr_wifi"
     }
 
     /// Manual IP entry (Android "Manual IP").
@@ -288,6 +301,12 @@ final class TransferManager: ObservableObject {
     /// Queue files for every connected device.
     func send(_ list: [ShareItem]) {
         let targets = Array(peers.values)
+        let total = list.reduce(Int64(0)) { $0 + ($1.size > 0 ? $1.size : FileUtils.fileSize($1.url)) }
+        AnalyticsService.log(.sendStart, [
+            "files_count": list.count,
+            "total_bytes": AnalyticsService.bytes(total),
+            "devices": targets.count
+        ])
         guard !targets.isEmpty else {
             session.error = String(localized: "No device connected")
             return
@@ -311,6 +330,7 @@ final class TransferManager: ObservableObject {
             }
         }
         if blocked {
+            AnalyticsService.log(.fileLimitHit)
             session.error = String(localized: "Files over 1 GB need Premium")
         }
     }
@@ -318,6 +338,8 @@ final class TransferManager: ObservableObject {
     // MARK: - Callbacks from PeerConnection
 
     func onPeerHello(_ p: PeerConnection) {
+        AnalyticsService.log(.connectSuccess, ["method": session.role == .host ? "incoming" : "outgoing"])
+        if session.role == .client && session.group { AnalyticsService.log(.groupJoin) }
         refreshPeers()
         if session.role == .host && session.group {
             let list = peers.values.filter(\.helloReceived).map { $0.info() }
@@ -391,6 +413,7 @@ final class TransferManager: ObservableObject {
             $0.status = .failed
             $0.error = error
         }
+        AnalyticsService.log(.transferFailed, ["reason": String(error.prefix(100))])
     }
 
     func markSent(_ item: TransferItem) {
@@ -402,6 +425,10 @@ final class TransferManager: ObservableObject {
             $0.transferred = $0.size
         }
         HistoryStore.shared.add(name: item.name, size: item.size, mime: item.mime, sent: true, peer: item.peerName, url: nil)
+        AnalyticsService.log(.fileSent, [
+            "category": item.mime.split(separator: "/").first.map(String.init) ?? "other",
+            "bytes": AnalyticsService.bytes(item.size)
+        ])
         finished(sent: true, bytes: item.size)
     }
 
@@ -416,6 +443,10 @@ final class TransferManager: ObservableObject {
             items.removeAll { $0.id != item.id && $0.shareKey == item.shareKey && $0.direction == .receive }
         }
         HistoryStore.shared.add(name: item.name, size: item.size, mime: item.mime, sent: false, peer: item.peerName, url: url)
+        AnalyticsService.log(.fileReceived, [
+            "category": item.mime.split(separator: "/").first.map(String.init) ?? "other",
+            "bytes": AnalyticsService.bytes(item.size)
+        ])
         finished(sent: false, bytes: item.size)
         if Prefs.shared.saveToPhotos { PhotoSaver.saveIfMedia(url) }
 
@@ -434,7 +465,10 @@ final class TransferManager: ObservableObject {
     private func finished(sent: Bool, bytes: Int64) {
         finishedCount += 1
         AdsManager.shared.markTaskDone()
-        AnalyticsService.log(.transferDone, ["direction": sent ? "send" : "receive", "bytes": bytes])
+        AnalyticsService.log(.transferDone, [
+            "direction": sent ? "send" : "receive",
+            "bytes": AnalyticsService.bytes(bytes)
+        ])
         Task { await FirestoreService.shared.addTransferStats(sent: sent, bytes: bytes) }
         PushService.shared.askAfterFirstTaskIfNeeded()
     }

@@ -49,6 +49,7 @@ struct SplashView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("Share you"))
+        .trackScreen("splash")
         .task { await runIntro() }
     }
 

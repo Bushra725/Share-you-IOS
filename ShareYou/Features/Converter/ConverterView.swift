@@ -26,6 +26,7 @@ final class ConverterViewModel: ObservableObject {
         report = nil
         progress = 0
         defer { running = false }
+        AnalyticsService.log(.convertStart, ["op": op.rawValue, "count": max(inputs.count, op.input == .text ? 1 : 0), "batch": batch ? 1 : 0])
         do {
             switch op.input {
             case .text:
@@ -60,6 +61,7 @@ final class ConverterViewModel: ObservableObject {
             AdsManager.shared.markTaskDone()
         } catch {
             self.error = error.localizedDescription
+            AnalyticsService.log(.convertFailed, ["op": op.rawValue, "reason": error.localizedDescription])
         }
     }
 }
@@ -86,7 +88,11 @@ struct ConverterView: View {
             Section {
                 let unlocked = DayUnlock.batch()
                 Toggle(isOn: Binding(get: { vm.batch }, set: { on in
-                    if on && !unlocked { showUnlock = true } else { vm.batch = on }
+                    AnalyticsService.click("batch_toggle", screen: "converter", ["on": on ? 1 : 0])
+                    if on && !unlocked {
+                        AnalyticsService.click("unlock_batch", screen: "converter")
+                        showUnlock = true
+                    } else { vm.batch = on }
                 })) {
                     HStack {
                         Text("Batch mode (many files at once)")
@@ -99,6 +105,7 @@ struct ConverterView: View {
                 Section(header: Text(section.0)) {
                     ForEach(section.1) { op in
                         Button {
+                            AnalyticsService.click("op_select", screen: "converter", ["op": op.rawValue])
                             vm.reset()
                             vm.op = op
                         } label: {
@@ -111,12 +118,13 @@ struct ConverterView: View {
         }
         .navigationTitle(Text("Converter"))
         .sheet(item: $vm.op) { op in
-            NavigationStack { jobView(op) }
+            NavigationStack { jobView(op).trackScreen("convert_job") }
         }
         .sheet(isPresented: $showUnlock) {
             UnlockSheet(title: "Batch mode", message: "Convert many files in one go. Watch one short video to unlock it until midnight.",
                         icon: "square.stack.3d.up.fill", perks: ["Convert many files at once", "Lasts until midnight"]) {
                 DayUnlock.grantBatch()
+                AnalyticsService.log(.featureUnlock, ["feature": "batch_convert"])
                 vm.batch = true
                 tick += 1
             }
@@ -139,15 +147,22 @@ struct ConverterView: View {
                         HStack { FileThumb(url: url, name: url.lastPathComponent, size: 36); Text(url.lastPathComponent).lineLimit(1) }
                     }
                     if op.input == .images || op.input == .video || op.input == .media {
-                        Button { showMedia = true } label: { Label("Choose from Photos", systemImage: "photo.on.rectangle") }
+                        Button {
+                            AnalyticsService.click("pick_photos", screen: "convert_job", ["op": op.rawValue])
+                            showMedia = true
+                        } label: { Label("Choose from Photos", systemImage: "photo.on.rectangle") }
                     }
-                    Button { showFiles = true } label: { Label("Choose from Files", systemImage: "folder") }
+                    Button {
+                        AnalyticsService.click("pick_files", screen: "convert_job", ["op": op.rawValue])
+                        showFiles = true
+                    } label: { Label("Choose from Files", systemImage: "folder") }
                 } header: {
                     allowsMany(op) ? Text("Files") : Text("File")
                 }
             }
             Section {
                 Button {
+                    AnalyticsService.click("convert", screen: "convert_job", ["op": op.rawValue, "count": vm.inputs.count])
                     Task {
                         await vm.run()
                         if vm.error == nil { ads.tryShow(.convertDone) }
@@ -170,14 +185,21 @@ struct ConverterView: View {
                             FileThumb(url: url, name: url.lastPathComponent, size: 36)
                             Text(url.lastPathComponent).lineLimit(1)
                             Spacer()
-                            Button { preview = url } label: { Image(systemName: "eye") }.buttonStyle(.borderless)
+                            Button {
+                                AnalyticsService.click("open_result", screen: "convert_job")
+                                preview = url
+                            } label: { Image(systemName: "eye") }.buttonStyle(.borderless)
                                 .accessibilityLabel(Text("Open"))
-                            Button { share = url } label: { Image(systemName: "square.and.arrow.up") }.buttonStyle(.borderless)
+                            Button {
+                                AnalyticsService.click("share_result", screen: "convert_job")
+                                share = url
+                            } label: { Image(systemName: "square.and.arrow.up") }.buttonStyle(.borderless)
                                 .accessibilityLabel(Text("Share"))
                         }
                     }
                     if vm.outputs.contains(where: { let m = FileUtils.mimeOf($0.lastPathComponent); return m.hasPrefix("image/") || m.hasPrefix("video/") }) {
                         Button {
+                            AnalyticsService.click("save_photos", screen: "convert_job")
                             Task { for u in vm.outputs { await PhotoSaver.save(u) }; Router.shared.showToast(String(localized: "Saved to Photos")) }
                         } label: { Label("Save to Photos", systemImage: "square.and.arrow.down") }
                     }
@@ -186,7 +208,10 @@ struct ConverterView: View {
         }
         .navigationTitle(Text("Convert"))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { vm.op = nil } } }
+        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") {
+            AnalyticsService.click("close", screen: "convert_job")
+            vm.op = nil
+        } } }
         .sheet(isPresented: $showMedia) {
             MediaPicker(filter: op.input == .images ? .images : .videos, limit: allowsMany(op) ? 0 : 1) { items, _ in
                 vm.inputs = allowsMany(op) ? vm.inputs + items.map(\.url) : items.map(\.url)

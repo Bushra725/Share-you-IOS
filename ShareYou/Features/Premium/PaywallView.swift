@@ -56,6 +56,7 @@ struct PaywallView: View {
                         Text(message).font(.footnote).foregroundStyle(.red).multilineTextAlignment(.center)
                     }
                     Button {
+                        AnalyticsService.click("continue", screen: "paywall", ["product_id": selected])
                         Task {
                             await store.purchase(productID: selected)
                             if store.isPremium { dismiss() }
@@ -106,6 +107,7 @@ struct PaywallView: View {
             }
             .task { if store.products.isEmpty { await store.loadProducts() } }
         }
+        .trackScreen("premium")
     }
 
     private var plans: some View {

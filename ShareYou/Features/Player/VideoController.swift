@@ -46,6 +46,12 @@ final class VideoController: NSObject, ObservableObject {
         MusicController.shared.pause()
         queue = items
         index = startAt
+        let source: String
+        switch items[startAt] {
+        case .file: source = "files"
+        case .asset: source = "photos"
+        }
+        AnalyticsService.log(.videoPlay, ["source": source, "queue_size": items.count])
         current = items[startAt]
         refreshStepFlags()
         if presented == nil { presented = items[startAt] }
@@ -121,7 +127,10 @@ struct VideoPlayerScreen: View {
             .background(Color.black)
             .overlay(alignment: .top) {
                 HStack(spacing: 12) {
-                    Button { dismiss() } label: {
+                    Button {
+                        AnalyticsService.click("close", screen: "video_player")
+                        dismiss()
+                    } label: {
                         Image(systemName: "xmark").font(.headline).padding(12).background(.ultraThinMaterial, in: Circle())
                     }
                     .accessibilityLabel(Text("Close"))
@@ -148,6 +157,7 @@ struct VideoPlayerScreen: View {
                 await video.load(source)
             }
             .onDisappear { video.closed() }
+            .trackScreen("video_player")
     }
 }
 

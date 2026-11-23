@@ -55,7 +55,7 @@ final class PcShare: ObservableObject {
             }
             RunLoop.main.add(t, forMode: .common)
             refresher = t
-            AnalyticsService.log(.pcConnected)
+            AnalyticsService.log(.pcStart)
         } catch {
             self.error = String(localized: "Could not open the PC page. \(error.localizedDescription)")
         }
@@ -118,6 +118,7 @@ final class PcShare: ObservableObject {
     private func didReceive(url: URL, name: String, size: Int64) {
         incoming.removeAll { $0.name == name }
         received.append(ShareItem(url: url, name: name, size: size))
+        AnalyticsService.log(.pcUpload, ["bytes": AnalyticsService.bytes(size)])
         HistoryStore.shared.add(name: name, size: size, mime: FileUtils.mimeOf(name), sent: false, peer: "PC", url: url)
         transfersDone += 1
         AdsManager.shared.markTaskDone()
@@ -127,7 +128,10 @@ final class PcShare: ObservableObject {
     private func append(_ msg: String) {
         log.insert(msg, at: 0)
         if log.count > 50 { log.removeLast(log.count - 50) }
-        if msg.hasPrefix(String(localized: "PC downloaded")) { transfersDone += 1 }
+        if msg.hasPrefix(String(localized: "PC downloaded")) {
+            transfersDone += 1
+            AnalyticsService.log(.pcDownload)
+        }
     }
 
     // MARK: thread-safe snapshot for the server queue
@@ -170,6 +174,7 @@ struct PcShareView: View {
     @State private var showSources = false
     @State private var pendingAdd: [ShareItem] = []
     @State private var preview: URL?
+    @State private var altOpen = false
 
     var body: some View {
         List {
@@ -183,11 +188,17 @@ struct PcShareView: View {
                             Text("Access code:").foregroundStyle(.secondary)
                             Text(pc.token).font(.headline.monospaced())
                         }
-                        Button { UIPasteboard.general.string = url } label: { Label("Copy address", systemImage: "doc.on.doc") }
+                        Button {
+                            AnalyticsService.click("copy_address", screen: "connect_pc")
+                            UIPasteboard.general.string = url
+                        } label: { Label("Copy address", systemImage: "doc.on.doc") }
                     }
                     .padding(.vertical, 4)
                     if !pc.altURLs.isEmpty {
-                        DisclosureGroup("Page doesn't open? Try these") {
+                        DisclosureGroup("Page doesn't open? Try these", isExpanded: Binding(get: { altOpen }, set: { on in
+                            if on { AnalyticsService.click("alt_addresses", screen: "connect_pc") }
+                            altOpen = on
+                        })) {
                             ForEach(pc.altURLs, id: \.self) { Text($0).font(.footnote.monospaced()).textSelection(.enabled) }
                         }
                     }
@@ -198,7 +209,10 @@ struct PcShareView: View {
                 }
                 if let error = pc.error {
                     ErrorBanner(text: error)
-                    Button("Try again") { Task { await pc.start() } }
+                    Button("Try again") {
+                        AnalyticsService.click("retry", screen: "connect_pc")
+                        Task { await pc.start() }
+                    }
                 }
             } header: {
                 Text("Connect to PC")
@@ -207,7 +221,10 @@ struct PcShareView: View {
             }
 
             Section {
-                Button { showSources = true } label: { Label("Add files for the PC", systemImage: "plus.circle.fill") }
+                Button {
+                    AnalyticsService.click("add_files", screen: "connect_pc")
+                    showSources = true
+                } label: { Label("Add files for the PC", systemImage: "plus.circle.fill") }
                 ForEach(pc.shared) { item in
                     Button { preview = item.url } label: {
                         HStack {
@@ -217,7 +234,10 @@ struct PcShareView: View {
                             Text(FileUtils.formatSize(item.size)).font(.caption).foregroundStyle(.secondary)
                         }
                     }
-                    .swipeActions { Button(role: .destructive) { pc.removeShared(item) } label: { Label("Remove", systemImage: "trash") } }
+                    .swipeActions { Button(role: .destructive) {
+                        AnalyticsService.click("remove_shared", screen: "connect_pc")
+                        pc.removeShared(item)
+                    } label: { Label("Remove", systemImage: "trash") } }
                 }
             } header: { Text("Shared with the PC") }
 
@@ -277,7 +297,10 @@ struct PcShareView: View {
         .toolbar {
             if pc.running {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Stop", role: .destructive) { pc.stop() }
+                    Button("Stop", role: .destructive) {
+                        AnalyticsService.click("stop_server", screen: "connect_pc")
+                        pc.stop()
+                    }
                 }
             }
         }

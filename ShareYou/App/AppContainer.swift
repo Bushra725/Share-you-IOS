@@ -36,9 +36,11 @@ final class AppContainer: ObservableObject {
     func scenePhaseChanged(_ phase: ScenePhase) {
         switch phase {
         case .active:
+            AnalyticsService.foreground()
             ads.appBecameActive()
             store.refreshEntitlements()
         case .background:
+            AnalyticsService.background()
             ads.appEnteredBackground()
             vault.lock()
             video.appEnteredBackground()
