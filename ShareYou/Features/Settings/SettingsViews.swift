@@ -46,6 +46,11 @@ struct SettingsView: View {
                     AnalyticsService.log(.settingsChange, ["setting": "keep_screen_on", "value": on ? "1" : "0"])
                     prefs.keepScreenOn = on
                 }))
+                Toggle("Reminders", isOn: Binding(get: { prefs.remindersOn }, set: { on in
+                    AnalyticsService.click("reminders", screen: "settings", ["on": on ? 1 : 0])
+                    AnalyticsService.log(.settingsChange, ["setting": "reminders", "value": on ? "1" : "0"])
+                    prefs.remindersOn = on
+                }))
                 Toggle("Save received photos & videos to Photos", isOn: Binding(get: { prefs.saveToPhotos }, set: { on in
                     AnalyticsService.click("save_to_photos", screen: "settings", ["on": on ? 1 : 0])
                     AnalyticsService.log(.settingsChange, ["setting": "save_to_photos", "value": on ? "1" : "0"])

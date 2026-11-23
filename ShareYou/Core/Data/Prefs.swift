@@ -18,6 +18,7 @@ final class Prefs: ObservableObject {
         static let cleanDay = "cleanSelectDay", groupDay = "groupExtraDay"
         static let sessions = "appSessions", firstTask = "firstTaskDone", attAsked = "attAsked"
         static let pushAsked = "pushAsked", fcmToken = "fcmToken", deleteAfterHide = "deleteAfterHide"
+        static let reminders = "remindersOn"
     }
 
     @Published var deviceName: String { didSet { d.set(deviceName, forKey: K.deviceName) } }
@@ -29,6 +30,14 @@ final class Prefs: ObservableObject {
     @Published var keepScreenOn: Bool { didSet { d.set(keepScreenOn, forKey: K.keepScreenOn) } }
     @Published var saveToPhotos: Bool { didSet { d.set(saveToPhotos, forKey: K.saveToPhotos) } }
     @Published var deleteAfterHide: Bool { didSet { d.set(deleteAfterHide, forKey: K.deleteAfterHide) } }
+    private var ready = false
+
+    @Published var remindersOn: Bool {
+        didSet {
+            d.set(remindersOn, forKey: K.reminders)
+            if ready { LocalNotificationService.shared.rescheduleReminders() }
+        }
+    }
 
     @Published var premiumDebug: Bool { didSet { d.set(premiumDebug, forKey: K.premiumDebug) } }
     @Published var premiumAdUntil: Date { didSet { d.set(premiumAdUntil.timeIntervalSince1970, forKey: K.premiumAdUntil) } }
@@ -62,7 +71,7 @@ final class Prefs: ObservableObject {
     }
 
     private init() {
-        d.register(defaults: [K.groupRelay: true, K.keepScreenOn: true, K.deleteAfterHide: false])
+        d.register(defaults: [K.groupRelay: true, K.keepScreenOn: true, K.deleteAfterHide: false, K.reminders: true])
         deviceName = d.string(forKey: K.deviceName) ?? Prefs.defaultName()
         avatar = d.object(forKey: K.avatar) as? Int ?? Int.random(in: 0..<Prefs.avatars.count)
         onboarded = d.bool(forKey: K.onboarded)
@@ -71,6 +80,7 @@ final class Prefs: ObservableObject {
         keepScreenOn = d.bool(forKey: K.keepScreenOn)
         saveToPhotos = d.bool(forKey: K.saveToPhotos)
         deleteAfterHide = d.bool(forKey: K.deleteAfterHide)
+        remindersOn = d.object(forKey: K.reminders) as? Bool ?? true
         premiumDebug = d.bool(forKey: K.premiumDebug)
         premiumAdUntil = Date(timeIntervalSince1970: d.double(forKey: K.premiumAdUntil))
         batchConvertDay = d.string(forKey: K.batchDay) ?? ""
@@ -78,6 +88,7 @@ final class Prefs: ObservableObject {
         vaultExtraDay = d.string(forKey: K.vaultDay) ?? ""
         cleanSelectDay = d.string(forKey: K.cleanDay) ?? ""
         groupExtraDay = d.string(forKey: K.groupDay) ?? ""
+        ready = true
     }
 
     var avatarEmoji: String { Prefs.avatars[max(0, min(avatar, Prefs.avatars.count - 1))] }

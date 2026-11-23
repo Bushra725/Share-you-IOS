@@ -443,6 +443,7 @@ final class TransferManager: ObservableObject {
             items.removeAll { $0.id != item.id && $0.shareKey == item.shareKey && $0.direction == .receive }
         }
         HistoryStore.shared.add(name: item.name, size: item.size, mime: item.mime, sent: false, peer: item.peerName, url: url)
+        LocalNotificationService.shared.fileReceived(name: item.name, from: item.peerName)
         AnalyticsService.log(.fileReceived, [
             "category": item.mime.split(separator: "/").first.map(String.init) ?? "other",
             "bytes": AnalyticsService.bytes(item.size)

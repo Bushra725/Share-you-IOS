@@ -71,8 +71,7 @@ final class AdsManager: NSObject, ObservableObject {
         actionsSinceAd = 0
         fileOpens = 0
         let rc = RemoteConfigService.shared
-        sessionCap = rc.interstitialSessionCap > 0 ? rc.interstitialSessionCap : Int.random(in: 4...6)
-        cooldown = rc.interstitialCooldown > 0 ? rc.interstitialCooldown : Double.random(in: 60...90)
+        applyRemoteLimits()
         if prefs.appSessions >= 2 && !StoreService.shared.isPremium { splash = true }
     }
 
@@ -182,7 +181,15 @@ final class AdsManager: NSObject, ObservableObject {
 
     // MARK: - Interstitials
 
+    /// Picks up a new cooldown or session cap after Remote Config activates.
+    func applyRemoteLimits() {
+        let rc = RemoteConfigService.shared
+        sessionCap = rc.interstitialSessionCap > 0 ? rc.interstitialSessionCap : 5
+        cooldown = rc.interstitialCooldown > 0 ? rc.interstitialCooldown : 75
+    }
+
     func tryShow(_ place: Place, count: Int = 1) {
+        guard RemoteConfigService.shared.interstitialEnabled else { return }
         guard placeReady(place, count: count) else { return }
         pendingInterstitial = true
         showInterstitialNow()
@@ -212,6 +219,7 @@ final class AdsManager: NSObject, ObservableObject {
 
     private func showInterstitialNow() {
         guard pendingInterstitial else { return }
+        guard RemoteConfigService.shared.interstitialEnabled else { pendingInterstitial = false; return }
         if adsOff || interstitialsShown >= sessionCap { pendingInterstitial = false; return }
         guard gatesOK() else { preloadInterstitial(); scheduleFlush(); return }
         guard let ad = interstitial, let vc = UIHelpers.topViewController() else { preloadInterstitial(); return }
@@ -222,7 +230,7 @@ final class AdsManager: NSObject, ObservableObject {
         lastShown = Date()
         interstitialsShown += 1
         actionsSinceAd = 0
-        cooldown = RemoteConfigService.shared.interstitialCooldown > 0 ? RemoteConfigService.shared.interstitialCooldown : Double.random(in: 60...90)
+        applyRemoteLimits()
         ad.fullScreenContentDelegate = self
         AnalyticsService.log(.adShow, ["ad_format": "interstitial", "placement": "fullscreen"])
         ad.present(from: vc)

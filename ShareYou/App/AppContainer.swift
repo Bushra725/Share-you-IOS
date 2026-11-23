@@ -39,11 +39,16 @@ final class AppContainer: ObservableObject {
             AnalyticsService.foreground()
             ads.appBecameActive()
             store.refreshEntitlements()
+            if started {
+                LocalNotificationService.shared.cancelTransferWarning()
+                LocalNotificationService.shared.rescheduleReminders()
+            }
         case .background:
             AnalyticsService.background()
             ads.appEnteredBackground()
             vault.lock()
             video.appEnteredBackground()
+            if transfer.hasActiveWork { LocalNotificationService.shared.appBackgroundedDuringTransfer() }
         default:
             break
         }

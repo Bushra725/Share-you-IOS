@@ -120,6 +120,7 @@ final class PcShare: ObservableObject {
         received.append(ShareItem(url: url, name: name, size: size))
         AnalyticsService.log(.pcUpload, ["bytes": AnalyticsService.bytes(size)])
         HistoryStore.shared.add(name: name, size: size, mime: FileUtils.mimeOf(name), sent: false, peer: "PC", url: url)
+        LocalNotificationService.shared.fileReceived(name: name, from: "PC")
         transfersDone += 1
         AdsManager.shared.markTaskDone()
         updateSnapshot()

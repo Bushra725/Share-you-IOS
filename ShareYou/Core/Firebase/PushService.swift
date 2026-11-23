@@ -33,7 +33,10 @@ final class PushService: NSObject, ObservableObject {
             let granted = try await UNUserNotificationCenter.current()
                 .requestAuthorization(options: [.alert, .badge, .sound])
             await refreshStatus()
-            if granted { UIApplication.shared.registerForRemoteNotifications() }
+            if granted {
+                UIApplication.shared.registerForRemoteNotifications()
+                LocalNotificationService.shared.rescheduleReminders()
+            }
             AnalyticsService.log(.notificationPermission, ["granted": granted ? 1 : 0])
             return granted
         } catch {

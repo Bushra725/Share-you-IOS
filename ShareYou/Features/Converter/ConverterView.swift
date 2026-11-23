@@ -59,6 +59,10 @@ final class ConverterViewModel: ObservableObject {
             progress = 1
             AnalyticsService.log(.convertDone, ["op": op.rawValue, "count": inputs.count])
             AdsManager.shared.markTaskDone()
+            LocalNotificationService.shared.taskFinished(
+                String(localized: "Conversion finished"),
+                body: String(localized: "Your converted files are ready."),
+                route: "tools")
         } catch {
             self.error = error.localizedDescription
             AnalyticsService.log(.convertFailed, ["op": op.rawValue, "reason": error.localizedDescription])

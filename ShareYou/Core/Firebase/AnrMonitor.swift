@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import FirebaseAnalytics
+import FirebaseCrashlytics
 
 /// Pings the main thread. If it does not answer, logs `app_not_responding`.
 final class AnrMonitor: @unchecked Sendable {
@@ -44,6 +45,14 @@ final class AnrMonitor: @unchecked Sendable {
                 _ = answered.wait(timeout: .now() + 60)
                 let duration = Date().timeIntervalSince(started)
                 guard foreground() else { continue }
+                let seconds = String(format: "%.1f", duration)
+                let crashlytics = Crashlytics.crashlytics()
+                crashlytics.setCustomValue(seconds, forKey: "anr_duration_sec")
+                crashlytics.setCustomValue(screen, forKey: "anr_screen")
+                crashlytics.log("ANR: main thread blocked \(seconds)s on \(screen)")
+                let model = ExceptionModel(name: "ApplicationNotResponding",
+                                           reason: "Main thread blocked \(seconds)s on \(screen)")
+                crashlytics.record(exceptionModel: model)
                 Analytics.logEvent("app_not_responding", parameters: [
                     "screen": screen,
                     "duration_sec": duration
