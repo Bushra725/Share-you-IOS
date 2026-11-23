@@ -108,6 +108,7 @@ struct ScannerScreen: View {
             case .notDetermined:
                 ProgressView().task {
                     let granted = await AVCaptureDevice.requestAccess(for: .video)
+                    AnalyticsService.log(.permissionResult, ["permission": "camera", "granted": granted ? 1 : 0])
                     status = granted ? .authorized : .denied
                 }
             default:

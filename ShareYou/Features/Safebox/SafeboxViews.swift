@@ -28,14 +28,17 @@ struct PinPad: View {
     var subtitle: LocalizedStringKey? = nil
     var length = 4...8
     var error: String?
+    var showsHeader = true
     let onDone: (String) -> Void
     @State private var pin = ""
 
     var body: some View {
         VStack(spacing: 22) {
-            BrandIconBox(systemName: "lock.fill", size: 64)
-            Text(title).font(.title3.bold())
-            if let subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center) }
+            if showsHeader {
+                BrandIconBox(systemName: "lock.fill", size: 64)
+                Text(title).font(.title3.bold())
+                if let subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center) }
+            }
             HStack(spacing: 14) {
                 ForEach(0..<max(length.lowerBound, pin.count), id: \.self) { i in
                     Circle().fill(i < pin.count ? Brand.cyan3 : Color.gray.opacity(0.3)).frame(width: 14, height: 14)
@@ -63,6 +66,7 @@ struct PinPad: View {
             }
             .frame(maxWidth: 300)
             Button("OK") {
+                AnalyticsService.click("pin_ok", screen: "safebox")
                 let value = pin
                 pin = ""
                 onDone(value)
@@ -109,27 +113,50 @@ struct VaultUnlockView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 12) {
+                BrandIconBox(systemName: "lock.fill", size: 64).padding(.top, 8)
+                Text(usePattern ? "Draw your pattern" : "Enter PIN").font(.title3.bold())
+                Text(usePattern ? "Connect at least 4 dots" : "Enter 4 to 8 digits")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(minHeight: 22)
+                Group {
+                    if usePattern {
+                        PatternLockView { pattern in
+                            if !vault.unlockWithPattern(pattern) { error = String(localized: "Wrong pattern") }
+                        }
+                        .frame(width: 280, height: 280)
+                        if let error { Text(error).foregroundStyle(.red) }
+                    } else {
+                        PinPad(title: "Enter PIN", showsHeader: false, error: error) { pin in
+                            if !vault.unlock(pin: pin) { error = String(localized: "Wrong PIN") }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 420, alignment: .top)
                 if usePattern {
-                    Text("Draw your pattern").font(.title3.bold()).padding(.top)
-                    PatternLockView { pattern in
-                        if !vault.unlockWithPattern(pattern) { error = String(localized: "Wrong pattern") }
+                    Button("Use PIN instead") {
+                        AnalyticsService.click("switch_lock_method", screen: "safebox")
+                        usePattern = false; error = nil
                     }
-                    .frame(width: 280, height: 280)
-                    if let error { Text(error).foregroundStyle(.red) }
-                    Button("Use PIN instead") { usePattern = false; error = nil }
-                } else {
-                    PinPad(title: "Enter PIN", error: error) { pin in
-                        if !vault.unlock(pin: pin) { error = String(localized: "Wrong PIN") }
+                } else if vault.hasPattern {
+                    Button("Use pattern") {
+                        AnalyticsService.click("switch_lock_method", screen: "safebox")
+                        usePattern = true; error = nil
                     }
-                    if vault.hasPattern { Button("Use pattern") { usePattern = true; error = nil } }
                 }
                 if vault.biometricEnabled, let name = Vault.biometryName {
-                    Button { Task { await tryBiometrics(automatic: false) } } label: {
+                    Button {
+                        AnalyticsService.click("face_id", screen: "safebox")
+                        Task { await tryBiometrics(automatic: false) }
+                    } label: {
                         Label("Unlock with \(name)", systemImage: name == "Face ID" ? "faceid" : "touchid")
                     }
                 }
                 if vault.hasQuestions {
-                    Button("Forgot PIN?") { showRecovery = true }.font(.footnote)
+                    Button("Forgot PIN?") {
+                        AnalyticsService.click("forgot_pin", screen: "safebox")
+                        showRecovery = true
+                    }.font(.footnote)
                 }
             }
             .padding(.bottom)
@@ -141,7 +168,7 @@ struct VaultUnlockView: View {
                 await tryBiometrics(automatic: true)
             }
         }
-        .sheet(isPresented: $showRecovery) { RecoveryView() }
+        .sheet(isPresented: $showRecovery) { RecoveryView().trackScreen("safebox_reset_pin") }
     }
 
     private func tryBiometrics(automatic: Bool) async {
@@ -224,7 +251,9 @@ struct RecoveryView: View {
                         }
                         if let error { Text(error).foregroundStyle(.red) }
                         Button("Check answers") {
-                            if vault.checkQuestions(answers.map { ($0.key, $0.value) }) { verified = true }
+                            let ok = vault.checkQuestions(answers.map { ($0.key, $0.value) })
+                            AnalyticsService.click("check_answers", screen: "safebox_reset_pin", ["success": ok ? 1 : 0])
+                            if ok { verified = true }
                             else { error = String(localized: "Those answers don't match.") }
                         }
                     }
@@ -287,12 +316,24 @@ struct VaultContentView: View {
                         VaultTile(entry: e)
                             .onTapGesture { open(e) }
                             .contextMenu {
-                                Button { open(e) } label: { Label("Open", systemImage: "eye") }
-                                Button { restore(e, toPhotos: false) } label: { Label("Restore to Files", systemImage: "folder") }
+                                Button {
+                                    AnalyticsService.click("open_item", screen: "safebox")
+                                    open(e)
+                                } label: { Label("Open", systemImage: "eye") }
+                                Button {
+                                    AnalyticsService.click("restore_files", screen: "safebox")
+                                    restore(e, toPhotos: false)
+                                } label: { Label("Restore to Files", systemImage: "folder") }
                                 if e.category == .photos || e.category == .videos {
-                                    Button { restore(e, toPhotos: true) } label: { Label("Restore to Photos", systemImage: "photo") }
+                                    Button {
+                                        AnalyticsService.click("restore_photos", screen: "safebox")
+                                        restore(e, toPhotos: true)
+                                    } label: { Label("Restore to Photos", systemImage: "photo") }
                                 }
-                                Button(role: .destructive) { vault.delete(e) } label: { Label("Delete forever", systemImage: "trash") }
+                                Button(role: .destructive) {
+                                    AnalyticsService.click("delete_item", screen: "safebox")
+                                    vault.delete(e)
+                                } label: { Label("Delete forever", systemImage: "trash") }
                             }
                     }
                 }
@@ -302,13 +343,22 @@ struct VaultContentView: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Menu {
-                    Button { addTapped { showMedia = true } } label: { Label("Add photos & videos", systemImage: "photo.on.rectangle") }
-                    Button { addTapped { showFiles = true } } label: { Label("Add other files", systemImage: "doc") }
+                    Button {
+                        AnalyticsService.click("add_photos", screen: "safebox")
+                        addTapped { showMedia = true }
+                    } label: { Label("Add photos & videos", systemImage: "photo.on.rectangle") }
+                    Button {
+                        AnalyticsService.click("add_files", screen: "safebox")
+                        addTapped { showFiles = true }
+                    } label: { Label("Add other files", systemImage: "doc") }
                 } label: { Image(systemName: "plus.circle.fill") }
                     .accessibilityLabel(Text("Add"))
                 Menu {
                     Button { showSettings = true } label: { Label("Safebox settings", systemImage: "gearshape") }
-                    Button { vault.lockNow() } label: { Label("Lock now", systemImage: "lock") }
+                    Button {
+                        AnalyticsService.click("lock", screen: "safebox")
+                        vault.lockNow()
+                    } label: { Label("Lock now", systemImage: "lock") }
                 } label: { Image(systemName: "ellipsis.circle") }
                     .accessibilityLabel(Text("More"))
             }
@@ -327,10 +377,11 @@ struct VaultContentView: View {
                         message: "The free Safebox holds 10 files. Watch a short video for unlimited room today, or get Premium.",
                         icon: "lock.shield.fill", perks: ["Unlimited files today", "Lasts until midnight"]) {
                 DayUnlock.grantVault()
+                AnalyticsService.log(.featureUnlock, ["feature": "safebox_room"])
                 tick += 1
             }
         }
-        .sheet(isPresented: $showSettings) { VaultSettingsView() }
+        .sheet(isPresented: $showSettings) { VaultSettingsView().trackScreen("safebox_settings") }
         .fullScreenCover(item: $preview, onDismiss: { vault.suppressAutoLock = false }) { url in
             QuickLookView(urls: [url]).ignoresSafeArea()
         }
@@ -417,14 +468,29 @@ struct VaultSettingsView: View {
             Form {
                 Section {
                     if let name = Vault.biometryName {
-                        Toggle("Unlock with \(name)", isOn: $vault.biometricEnabled)
+                        Toggle("Unlock with \(name)", isOn: Binding(get: { vault.biometricEnabled }, set: { on in
+                            AnalyticsService.click("face_id_toggle", screen: "safebox_settings")
+                            vault.biometricEnabled = on
+                        }))
                     }
-                    Toggle("Remove originals from Photos after hiding", isOn: $prefs.deleteAfterHide)
-                    Button("Change PIN") { changing = true }
+                    Toggle("Remove originals from Photos after hiding", isOn: Binding(get: { prefs.deleteAfterHide }, set: { on in
+                        AnalyticsService.click("remove_originals_toggle", screen: "safebox_settings")
+                        prefs.deleteAfterHide = on
+                    }))
+                    Button("Change PIN") {
+                        AnalyticsService.click("change_pin", screen: "safebox_settings")
+                        changing = true
+                    }
                     if vault.hasPattern {
-                        Button("Remove pattern", role: .destructive) { vault.clearPattern() }
+                        Button("Remove pattern", role: .destructive) {
+                            AnalyticsService.click("remove_pattern", screen: "safebox_settings")
+                            vault.clearPattern()
+                        }
                     } else {
-                        Button("Set a pattern") { drawingPattern = true }
+                        Button("Set a pattern") {
+                            AnalyticsService.click("set_a_pattern", screen: "safebox_settings")
+                            drawingPattern = true
+                        }
                     }
                     if let message { Text(message).foregroundStyle(.secondary) }
                 } footer: {
@@ -436,6 +502,7 @@ struct VaultSettingsView: View {
                     Picker("Question 2", selection: $q2) { ForEach(0..<Vault.questions.count, id: \.self) { Text(Vault.questions[$0]).tag($0) } }
                     TextField("Answer", text: $a2)
                     Button("Save questions") {
+                        AnalyticsService.click("save_questions", screen: "safebox_settings")
                         vault.saveQuestions([(q1, a1), (q2, a2)])
                         message = String(localized: "Recovery questions saved.")
                         a1 = ""; a2 = ""

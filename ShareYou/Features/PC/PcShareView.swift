@@ -12,6 +12,7 @@ final class PcShare: ObservableObject {
     @Published private(set) var token = ""
     @Published private(set) var shared: [ShareItem] = []
     @Published private(set) var received: [ShareItem] = []
+    @Published private(set) var incoming: [IncomingPCFile] = []
     @Published private(set) var log: [String] = []
     @Published var error: String?
     @Published private(set) var transfersDone = 0
@@ -30,6 +31,9 @@ final class PcShare: ObservableObject {
         }
         s.onReceived = { [weak self] url, name, size in
             Task { @MainActor in self?.didReceive(url: url, name: name, size: size) }
+        }
+        s.onReceiveProgress = { [weak self] name, written, total in
+            Task { @MainActor in self?.noteIncoming(name: name, written: written, total: total) }
         }
         s.onLog = { [weak self] msg in
             Task { @MainActor in self?.append(msg) }
@@ -51,7 +55,7 @@ final class PcShare: ObservableObject {
             }
             RunLoop.main.add(t, forMode: .common)
             refresher = t
-            AnalyticsService.log(.pcConnected)
+            AnalyticsService.log(.pcStart)
         } catch {
             self.error = String(localized: "Could not open the PC page. \(error.localizedDescription)")
         }
@@ -65,6 +69,7 @@ final class PcShare: ObservableObject {
         running = false
         url = nil
         altURLs = []
+        incoming = []
         UIApplication.shared.isIdleTimerDisabled = false
         endBackgroundTask()
     }
@@ -97,9 +102,25 @@ final class PcShare: ObservableObject {
         updateSnapshot()
     }
 
+    private func noteIncoming(name: String, written: Int64, total: Int64) {
+        if let i = incoming.firstIndex(where: { $0.name == name }) {
+            let previous = incoming[i].fraction
+            let next = total > 0 ? min(0.99, Double(written) / Double(total)) : 0
+            if total > 0, next - previous < 0.01 { return }
+            if total <= 0, written - incoming[i].written < 64 * 1024 { return }
+            incoming[i].written = written
+            incoming[i].total = total
+        } else {
+            incoming.append(IncomingPCFile(name: name, written: written, total: total))
+        }
+    }
+
     private func didReceive(url: URL, name: String, size: Int64) {
+        incoming.removeAll { $0.name == name }
         received.append(ShareItem(url: url, name: name, size: size))
+        AnalyticsService.log(.pcUpload, ["bytes": AnalyticsService.bytes(size)])
         HistoryStore.shared.add(name: name, size: size, mime: FileUtils.mimeOf(name), sent: false, peer: "PC", url: url)
+        LocalNotificationService.shared.fileReceived(name: name, from: "PC")
         transfersDone += 1
         AdsManager.shared.markTaskDone()
         updateSnapshot()
@@ -108,7 +129,10 @@ final class PcShare: ObservableObject {
     private func append(_ msg: String) {
         log.insert(msg, at: 0)
         if log.count > 50 { log.removeLast(log.count - 50) }
-        if msg.hasPrefix(String(localized: "PC downloaded")) { transfersDone += 1 }
+        if msg.hasPrefix(String(localized: "PC downloaded")) {
+            transfersDone += 1
+            AnalyticsService.log(.pcDownload)
+        }
     }
 
     // MARK: thread-safe snapshot for the server queue
@@ -131,11 +155,27 @@ final class PcShare: ObservableObject {
     }
 }
 
+struct IncomingPCFile: Identifiable {
+    let id: String
+    var name: String
+    var written: Int64
+    var total: Int64
+    init(name: String, written: Int64, total: Int64) {
+        self.id = name
+        self.name = name
+        self.written = written
+        self.total = total
+    }
+    var fraction: Double { total > 0 ? min(0.99, Double(written) / Double(total)) : 0 }
+}
+
 struct PcShareView: View {
     @EnvironmentObject private var pc: PcShare
     @EnvironmentObject private var ads: AdsManager
     @State private var showSources = false
     @State private var pendingAdd: [ShareItem] = []
+    @State private var preview: URL?
+    @State private var altOpen = false
 
     var body: some View {
         List {
@@ -149,11 +189,17 @@ struct PcShareView: View {
                             Text("Access code:").foregroundStyle(.secondary)
                             Text(pc.token).font(.headline.monospaced())
                         }
-                        Button { UIPasteboard.general.string = url } label: { Label("Copy address", systemImage: "doc.on.doc") }
+                        Button {
+                            AnalyticsService.click("copy_address", screen: "connect_pc")
+                            UIPasteboard.general.string = url
+                        } label: { Label("Copy address", systemImage: "doc.on.doc") }
                     }
                     .padding(.vertical, 4)
                     if !pc.altURLs.isEmpty {
-                        DisclosureGroup("Page doesn't open? Try these") {
+                        DisclosureGroup("Page doesn't open? Try these", isExpanded: Binding(get: { altOpen }, set: { on in
+                            if on { AnalyticsService.click("alt_addresses", screen: "connect_pc") }
+                            altOpen = on
+                        })) {
                             ForEach(pc.altURLs, id: \.self) { Text($0).font(.footnote.monospaced()).textSelection(.enabled) }
                         }
                     }
@@ -164,7 +210,10 @@ struct PcShareView: View {
                 }
                 if let error = pc.error {
                     ErrorBanner(text: error)
-                    Button("Try again") { Task { await pc.start() } }
+                    Button("Try again") {
+                        AnalyticsService.click("retry", screen: "connect_pc")
+                        Task { await pc.start() }
+                    }
                 }
             } header: {
                 Text("Connect to PC")
@@ -173,28 +222,61 @@ struct PcShareView: View {
             }
 
             Section {
-                Button { showSources = true } label: { Label("Add files for the PC", systemImage: "plus.circle.fill") }
+                Button {
+                    AnalyticsService.click("add_files", screen: "connect_pc")
+                    showSources = true
+                } label: { Label("Add files for the PC", systemImage: "plus.circle.fill") }
                 ForEach(pc.shared) { item in
-                    HStack {
-                        FileThumb(url: item.url, name: item.name, size: 36)
-                        Text(item.name).lineLimit(1)
-                        Spacer()
-                        Text(FileUtils.formatSize(item.size)).font(.caption).foregroundStyle(.secondary)
+                    Button { preview = item.url } label: {
+                        HStack {
+                            FileThumb(url: item.url, name: item.name, size: 36)
+                            Text(item.name).lineLimit(1).foregroundStyle(.primary)
+                            Spacer()
+                            Text(FileUtils.formatSize(item.size)).font(.caption).foregroundStyle(.secondary)
+                        }
                     }
-                    .swipeActions { Button(role: .destructive) { pc.removeShared(item) } label: { Label("Remove", systemImage: "trash") } }
+                    .swipeActions { Button(role: .destructive) {
+                        AnalyticsService.click("remove_shared", screen: "connect_pc")
+                        pc.removeShared(item)
+                    } label: { Label("Remove", systemImage: "trash") } }
                 }
             } header: { Text("Shared with the PC") }
 
+            if !pc.incoming.isEmpty {
+                Section("Receiving") {
+                    ForEach(pc.incoming) { item in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(item.name).lineLimit(1)
+                                Spacer()
+                                Text(item.total > 0 ? "\(Int(item.fraction * 100))%" : FileUtils.formatSize(item.written))
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                            if item.total > 0 {
+                                ProgressView(value: item.fraction).tint(Brand.cyan3)
+                            } else {
+                                ProgressView().tint(Brand.cyan3)
+                            }
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityValue(Text("\(Int(item.fraction * 100)) percent"))
+                    }
+                }
+            }
+
             Section {
-                if pc.received.isEmpty {
+                if pc.received.isEmpty && pc.incoming.isEmpty {
                     Text("Drag files onto the page on your PC to send them here.").foregroundStyle(.secondary)
                 }
                 ForEach(pc.received) { item in
-                    HStack {
-                        FileThumb(url: item.url, name: item.name, size: 36)
-                        Text(item.name).lineLimit(1)
-                        Spacer()
-                        Text(FileUtils.formatSize(item.size)).font(.caption).foregroundStyle(.secondary)
+                    Button { preview = item.url } label: {
+                        HStack {
+                            FileThumb(url: item.url, name: item.name, size: 36)
+                            Text(item.name).lineLimit(1).foregroundStyle(.primary)
+                            Spacer()
+                            Text(FileUtils.formatSize(item.size)).font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                 }
             } header: { Text("Received from PC") }
@@ -216,7 +298,10 @@ struct PcShareView: View {
         .toolbar {
             if pc.running {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Stop", role: .destructive) { pc.stop() }
+                    Button("Stop", role: .destructive) {
+                        AnalyticsService.click("stop_server", screen: "connect_pc")
+                        pc.stop()
+                    }
                 }
             }
         }
@@ -234,6 +319,9 @@ struct PcShareView: View {
                     .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showSources = false } } }
             }
             .presentationDetents([.medium])
+        }
+        .fullScreenCover(item: $preview) { url in
+            QuickLookView(urls: [url]).ignoresSafeArea()
         }
     }
 }

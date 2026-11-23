@@ -22,6 +22,7 @@ enum FirebaseBootstrap {
 
         // 4. Analytics — no IDFA is read unless the user allows tracking (ATT).
         Analytics.setAnalyticsCollectionEnabled(true)
+        AnrMonitor.shared.start()
     }
 }
 

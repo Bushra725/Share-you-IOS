@@ -64,8 +64,8 @@ final class AuthService: NSObject, ObservableObject {
                 return
             }
             let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: result.user.accessToken.tokenString)
-            _ = try await Auth.auth().signIn(with: credential)
-            AnalyticsService.log(.signIn, ["method": "google"])
+            let res = try await Auth.auth().signIn(with: credential)
+            AnalyticsService.log(res.additionalUserInfo?.isNewUser == true ? .signUp : .login, ["method": "google"])
         } catch let e as NSError where e.domain == kGIDSignInErrorDomain && e.code == GIDSignInError.canceled.rawValue {
             // user closed the sheet
         } catch {
@@ -108,7 +108,7 @@ final class AuthService: NSObject, ObservableObject {
                         update(Auth.auth().currentUser)
                     }
                 }
-                AnalyticsService.log(.signIn, ["method": "apple"])
+                AnalyticsService.log(res.additionalUserInfo?.isNewUser == true ? .signUp : .login, ["method": "apple"])
             } catch {
                 self.error = error.localizedDescription
             }
@@ -121,6 +121,7 @@ final class AuthService: NSObject, ObservableObject {
         do {
             try Auth.auth().signOut()
             GIDSignIn.sharedInstance.signOut()
+            AnalyticsService.log(.logout)
         } catch {
             self.error = error.localizedDescription
         }
@@ -152,6 +153,7 @@ final class AuthService: NSObject, ObservableObject {
             await FirestoreService.shared.deleteUserData(uid: user.uid)
             try await user.delete()
             GIDSignIn.sharedInstance.signOut()
+            AnalyticsService.log(.deleteAccount)
             return true
         } catch {
             self.error = error.localizedDescription

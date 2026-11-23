@@ -71,8 +71,7 @@ final class AdsManager: NSObject, ObservableObject {
         actionsSinceAd = 0
         fileOpens = 0
         let rc = RemoteConfigService.shared
-        sessionCap = rc.interstitialSessionCap > 0 ? rc.interstitialSessionCap : Int.random(in: 4...6)
-        cooldown = rc.interstitialCooldown > 0 ? rc.interstitialCooldown : Double.random(in: 60...90)
+        applyRemoteLimits()
         if prefs.appSessions >= 2 && !StoreService.shared.isPremium { splash = true }
     }
 
@@ -93,6 +92,7 @@ final class AdsManager: NSObject, ObservableObject {
         }
         canRequestAds = ConsentInformation.shared.canRequestAds
         privacyOptionsRequired = ConsentInformation.shared.privacyOptionsRequirementStatus == .required
+        AnalyticsService.log(.consentResult, ["can_request_ads": canRequestAds ? 1 : 0])
         startSDKIfAllowed()
         if prefs.appSessions >= 2 { maybeAskTracking(after: 2) }
     }
@@ -126,7 +126,16 @@ final class AdsManager: NSObject, ObservableObject {
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
             guard UIApplication.shared.applicationState == .active, !showingFullScreen, !splash else { return }
             prefs.attAsked = true
-            _ = await ATTrackingManager.requestTrackingAuthorization()
+            let status = await ATTrackingManager.requestTrackingAuthorization()
+            let name: String
+            switch status {
+            case .authorized: name = "authorized"
+            case .denied: name = "denied"
+            case .restricted: name = "restricted"
+            case .notDetermined: name = "not_determined"
+            @unknown default: name = "unknown"
+            }
+            AnalyticsService.log(.attResult, ["status": name])
         }
     }
 
@@ -172,7 +181,15 @@ final class AdsManager: NSObject, ObservableObject {
 
     // MARK: - Interstitials
 
+    /// Picks up a new cooldown or session cap after Remote Config activates.
+    func applyRemoteLimits() {
+        let rc = RemoteConfigService.shared
+        sessionCap = rc.interstitialSessionCap > 0 ? rc.interstitialSessionCap : 5
+        cooldown = rc.interstitialCooldown > 0 ? rc.interstitialCooldown : 75
+    }
+
     func tryShow(_ place: Place, count: Int = 1) {
+        guard RemoteConfigService.shared.interstitialEnabled else { return }
         guard placeReady(place, count: count) else { return }
         pendingInterstitial = true
         showInterstitialNow()
@@ -202,6 +219,7 @@ final class AdsManager: NSObject, ObservableObject {
 
     private func showInterstitialNow() {
         guard pendingInterstitial else { return }
+        guard RemoteConfigService.shared.interstitialEnabled else { pendingInterstitial = false; return }
         if adsOff || interstitialsShown >= sessionCap { pendingInterstitial = false; return }
         guard gatesOK() else { preloadInterstitial(); scheduleFlush(); return }
         guard let ad = interstitial, let vc = UIHelpers.topViewController() else { preloadInterstitial(); return }
@@ -212,8 +230,9 @@ final class AdsManager: NSObject, ObservableObject {
         lastShown = Date()
         interstitialsShown += 1
         actionsSinceAd = 0
-        cooldown = RemoteConfigService.shared.interstitialCooldown > 0 ? RemoteConfigService.shared.interstitialCooldown : Double.random(in: 60...90)
+        applyRemoteLimits()
         ad.fullScreenContentDelegate = self
+        AnalyticsService.log(.adShow, ["ad_format": "interstitial", "placement": "fullscreen"])
         ad.present(from: vc)
     }
 
@@ -224,8 +243,11 @@ final class AdsManager: NSObject, ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 self.loadingInterstitial = false
-                if let ad { self.interstitial = ad; self.flushPending() }
-                else { Log.d("Interstitial failed: \(error?.localizedDescription ?? "")") }
+                if let ad {
+                    Self.attachPaidTracking(ad, unitID: AdConfig.interstitial, format: "interstitial")
+                    self.interstitial = ad
+                    self.flushPending()
+                } else { Log.d("Interstitial failed: \(error?.localizedDescription ?? "")") }
             }
         }
     }
@@ -275,6 +297,9 @@ final class AdsManager: NSObject, ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 self.loadingAppOpen = false
+                if let ad {
+                    Self.attachPaidTracking(ad, unitID: AdConfig.appOpen, format: "app_open")
+                }
                 self.appOpen = ad
                 if ad != nil && self.pendingAppOpen { self.flushPending() }
             }
@@ -299,6 +324,7 @@ final class AdsManager: NSObject, ObservableObject {
         showingFullScreen = true
         lastShown = Date()
         ad.fullScreenContentDelegate = self
+        AnalyticsService.log(.adShow, ["ad_format": "app_open", "placement": "splash"])
         ad.present(from: vc)
     }
 
@@ -311,6 +337,9 @@ final class AdsManager: NSObject, ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 self.loadingRewarded = false
+                if let ad {
+                    Self.attachPaidTracking(ad, unitID: AdConfig.rewarded, format: "rewarded")
+                }
                 self.rewarded = ad
                 if ad == nil { Log.d("Rewarded failed: \(error?.localizedDescription ?? "")") }
             }
@@ -337,6 +366,7 @@ final class AdsManager: NSObject, ObservableObject {
         rewardCallback = onReward
         showingFullScreen = true
         ad.fullScreenContentDelegate = self
+        AnalyticsService.log(.adShow, ["ad_format": "rewarded", "placement": "premium_unlock"])
         ad.present(from: vc) { [weak self] in
             Task { @MainActor in self?.rewardEarned = true }
         }
@@ -345,7 +375,7 @@ final class AdsManager: NSObject, ObservableObject {
     fileprivate func fullScreenDismissed() {
         showingFullScreen = false
         if rewardEarned, let cb = rewardCallback {
-            AnalyticsService.log(.rewardEarned)
+            AnalyticsService.log(.adReward)
             cb()
         }
         rewardEarned = false
@@ -354,6 +384,37 @@ final class AdsManager: NSObject, ObservableObject {
         prepareRewarded()
         loadAppOpen()
         flushPending()
+    }
+
+    // MARK: - Adjust ad revenue
+
+    /// Shared by fullscreen ads + banner/native in `AdViews`.
+    static func trackPaidImpression(_ value: AdValue, unitID: String, format: String) {
+        let micros = value.value.multiplying(byPowerOf10: 6).int64Value
+        AdjustService.trackAdRevenue(
+            valueMicros: micros,
+            currency: value.currencyCode,
+            adUnitID: unitID,
+            format: format
+        )
+        AnalyticsService.logAdImpression(
+            value: value.value.doubleValue,
+            currency: value.currencyCode,
+            format: format,
+            unitID: unitID
+        )
+    }
+
+    private static func attachPaidTracking(_ ad: InterstitialAd, unitID: String, format: String) {
+        ad.paidEventHandler = { trackPaidImpression($0, unitID: unitID, format: format) }
+    }
+
+    private static func attachPaidTracking(_ ad: AppOpenAd, unitID: String, format: String) {
+        ad.paidEventHandler = { trackPaidImpression($0, unitID: unitID, format: format) }
+    }
+
+    private static func attachPaidTracking(_ ad: RewardedAd, unitID: String, format: String) {
+        ad.paidEventHandler = { trackPaidImpression($0, unitID: unitID, format: format) }
     }
 }
 

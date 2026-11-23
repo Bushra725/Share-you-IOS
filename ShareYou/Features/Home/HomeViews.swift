@@ -17,22 +17,25 @@ struct HomeView: View {
                 VStack(spacing: 16) {
                     if !store.isPremium {
                         NativeAdCard()
-                        PremiumBanner { router.paywall() }
+                        PremiumBanner {
+                            AnalyticsService.click("premium_banner", screen: "home")
+                            router.paywall(source: "home_banner")
+                        }
                     }
                     SectionCard {
                         Text("Quick tools").font(.headline).padding(.bottom, 8)
                         TileGrid(items: [
-                            ToolItem(icon: "desktopcomputer", title: "Connect PC", color: Brand.catApps) { router.push(.pc) },
-                            ToolItem(icon: "person.3.fill", title: "Group share", color: Brand.catVideo) { router.push(.group) },
-                            ToolItem(icon: "lock.fill", title: "Safebox", color: Brand.catSafe) { router.push(.safebox) },
-                            ToolItem(icon: "arrow.triangle.2.circlepath", title: "Converter", color: Brand.catDocs) { router.push(.converter) },
-                            ToolItem(icon: "sparkles", title: "Clean", color: Brand.catPink) { router.push(.clean) },
-                            ToolItem(icon: "music.note", title: "Music", color: Brand.catMusic) { router.tab = .player },
-                            ToolItem(icon: "film.fill", title: "Videos", color: Brand.catVideo) { router.push(.category(.videos)) },
-                            ToolItem(icon: "clock.arrow.circlepath", title: "History", color: Brand.catDownload) { router.push(.history) }
+                            ToolItem(icon: "desktopcomputer", title: "Connect PC", color: Brand.catApps) { AnalyticsService.click("tool_connect_pc", screen: "home"); router.push(.pc) },
+                            ToolItem(icon: "person.3.fill", title: "Group share", color: Brand.catVideo) { AnalyticsService.click("tool_group_share", screen: "home"); router.push(.group) },
+                            ToolItem(icon: "lock.fill", title: "Safebox", color: Brand.catSafe) { AnalyticsService.click("tool_safebox", screen: "home"); router.push(.safebox) },
+                            ToolItem(icon: "arrow.triangle.2.circlepath", title: "Converter", color: Brand.catDocs) { AnalyticsService.click("tool_converter", screen: "home"); router.push(.converter) },
+                            ToolItem(icon: "sparkles", title: "Clean", color: Brand.catPink) { AnalyticsService.click("tool_clean", screen: "home"); router.push(.clean) },
+                            ToolItem(icon: "music.note", title: "Music", color: Brand.catMusic) { AnalyticsService.click("tool_music", screen: "home"); router.tab = .player },
+                            ToolItem(icon: "film.fill", title: "Videos", color: Brand.catVideo) { AnalyticsService.click("tool_videos", screen: "home"); router.push(.category(.videos)) },
+                            ToolItem(icon: "clock.arrow.circlepath", title: "History", color: Brand.catDownload) { AnalyticsService.click("tool_history", screen: "home"); router.push(.history) }
                         ])
                     }
-                    StorageCard { router.tab = .files }
+                    StorageCard { AnalyticsService.click("storage_card", screen: "home"); router.tab = .files }
                     AdBanner()
                     recent
                 }
@@ -51,7 +54,10 @@ struct HomeView: View {
                 AvatarBubble(index: prefs.avatar, size: 44, ring: true)
                 Text(AppConfig.appName).font(.title2.weight(.heavy)).foregroundStyle(Brand.navy)
                 Spacer()
-                Button { router.push(.connect(group: false)) } label: {
+                Button {
+                    AnalyticsService.click("scan_qr", screen: "home")
+                    router.push(.connect(group: false))
+                } label: {
                     Image(systemName: "qrcode.viewfinder").font(.title3).foregroundStyle(Brand.navy)
                         .frame(width: 42, height: 42).background(Color.white.opacity(0.35), in: Circle())
                 }
@@ -59,9 +65,15 @@ struct HomeView: View {
             }
             HStack {
                 Spacer()
-                bigAction("Send", icon: "arrow.up") { selection.clear(); router.push(.send) }
+                bigAction("Send", icon: "arrow.up") {
+                    AnalyticsService.click("send", screen: "home")
+                    selection.clear(); router.push(.send)
+                }
                 Spacer()
-                bigAction("Receive", icon: "arrow.down") { router.push(.receive(group: false)) }
+                bigAction("Receive", icon: "arrow.down") {
+                    AnalyticsService.click("receive", screen: "home")
+                    router.push(.receive(group: false))
+                }
                 Spacer()
             }
         }
@@ -89,14 +101,18 @@ struct HomeView: View {
             HStack {
                 Text("Recently received").font(.headline)
                 Spacer()
-                Button("History") { router.push(.history) }
+                Button("History") { AnalyticsService.click("recent_history", screen: "home"); router.push(.history) }
             }
             let items = history.entries.filter { !$0.sent }.prefix(5)
             if items.isEmpty {
                 Text("Files you receive will show up here.").foregroundStyle(.secondary).padding(.vertical, 12)
             } else {
                 ForEach(Array(items)) { e in
-                    Button { if let u = e.url { preview = u } } label: {
+                    Button {
+                        AnalyticsService.click("recent_file", screen: "home", ["category": e.mime.split(separator: "/").first.map(String.init) ?? "other"])
+                        AnalyticsService.log(.fileOpen, ["category": e.mime.split(separator: "/").first.map(String.init) ?? "other"])
+                        if let u = e.url { preview = u }
+                    } label: {
                         HStack(spacing: 12) {
                             FileThumb(url: e.url, name: e.name)
                             VStack(alignment: .leading) {
@@ -124,24 +140,35 @@ struct ToolsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                if !store.isPremium { PremiumBanner { router.paywall() } }
+                if !store.isPremium {
+                    PremiumBanner {
+                        AnalyticsService.click("premium_banner", screen: "tools")
+                        router.paywall(source: "tools")
+                    }
+                }
                 section("Transfer", [
-                    ToolItem(icon: "arrow.up", title: "Send", color: Brand.catApps) { selection.clear(); router.push(.send) },
-                    ToolItem(icon: "arrow.down", title: "Receive", color: Brand.catPhoto) { router.push(.receive(group: false)) },
-                    ToolItem(icon: "person.3.fill", title: "Group share", color: Brand.catVideo) { router.push(.group) },
-                    ToolItem(icon: "desktopcomputer", title: "Connect PC", color: Brand.catApps) { router.push(.pc) },
-                    ToolItem(icon: "clock.arrow.circlepath", title: "History", color: Brand.catDocs) { router.push(.history) }
+                    ToolItem(icon: "arrow.up", title: "Send", color: Brand.catApps) {
+                        AnalyticsService.click("tool_send", screen: "tools")
+                        selection.clear(); router.push(.send)
+                    },
+                    ToolItem(icon: "arrow.down", title: "Receive", color: Brand.catPhoto) {
+                        AnalyticsService.click("tool_receive", screen: "tools")
+                        router.push(.receive(group: false))
+                    },
+                    ToolItem(icon: "person.3.fill", title: "Group share", color: Brand.catVideo) { AnalyticsService.click("tool_group_share", screen: "tools"); router.push(.group) },
+                    ToolItem(icon: "desktopcomputer", title: "Connect PC", color: Brand.catApps) { AnalyticsService.click("tool_connect_pc", screen: "tools"); router.push(.pc) },
+                    ToolItem(icon: "clock.arrow.circlepath", title: "History", color: Brand.catDocs) { AnalyticsService.click("tool_history", screen: "tools"); router.push(.history) }
                 ])
                 section("Media", [
-                    ToolItem(icon: "music.note", title: "Music", color: Brand.catPink) { router.tab = .player },
-                    ToolItem(icon: "film.fill", title: "Videos", color: Brand.catVideo) { router.push(.category(.videos)) },
-                    ToolItem(icon: "arrow.triangle.2.circlepath", title: "Converter", color: Brand.catDocs) { router.push(.converter) }
+                    ToolItem(icon: "music.note", title: "Music", color: Brand.catPink) { AnalyticsService.click("tool_music", screen: "tools"); router.tab = .player },
+                    ToolItem(icon: "film.fill", title: "Videos", color: Brand.catVideo) { AnalyticsService.click("tool_videos", screen: "tools"); router.push(.category(.videos)) },
+                    ToolItem(icon: "arrow.triangle.2.circlepath", title: "Converter", color: Brand.catDocs) { AnalyticsService.click("tool_converter", screen: "tools"); router.push(.converter) }
                 ])
                 section("Files", [
-                    ToolItem(icon: "folder.fill", title: "Browse", color: Brand.catCyan) { router.push(.browser(AppFiles.documents)) },
-                    ToolItem(icon: "sparkles", title: "Clean", color: Brand.catPdf) { router.push(.clean) },
-                    ToolItem(icon: "lock.fill", title: "Safebox", color: Brand.catSafe) { router.push(.safebox) },
-                    ToolItem(icon: "externaldrive.fill", title: "Large files", color: Brand.catDownload) { router.push(.largeFiles) }
+                    ToolItem(icon: "folder.fill", title: "Browse", color: Brand.catCyan) { AnalyticsService.click("tool_browse", screen: "tools"); router.push(.browser(AppFiles.documents)) },
+                    ToolItem(icon: "sparkles", title: "Clean", color: Brand.catPdf) { AnalyticsService.click("tool_clean", screen: "tools"); router.push(.clean) },
+                    ToolItem(icon: "lock.fill", title: "Safebox", color: Brand.catSafe) { AnalyticsService.click("tool_safebox", screen: "tools"); router.push(.safebox) },
+                    ToolItem(icon: "externaldrive.fill", title: "Large files", color: Brand.catDownload) { AnalyticsService.click("tool_large_files", screen: "tools"); router.push(.largeFiles) }
                 ])
                 AdBanner()
             }
@@ -174,7 +201,10 @@ struct MeView: View {
         ScrollView {
             VStack(spacing: 0) {
                 HStack(spacing: 16) {
-                    Button { prefs.avatar = (prefs.avatar + 1) % Prefs.avatars.count } label: {
+                    Button {
+                        AnalyticsService.click("change_avatar", screen: "me")
+                        prefs.avatar = (prefs.avatar + 1) % Prefs.avatars.count
+                    } label: {
                         AvatarBubble(index: prefs.avatar, size: 72, ring: true)
                     }
                     .accessibilityLabel(Text("Change avatar"))
@@ -186,7 +216,10 @@ struct MeView: View {
                         }
                     }
                     Spacer()
-                    Button { name = prefs.deviceName; editing = true } label: { Image(systemName: "pencil").foregroundStyle(Brand.navy).padding(8) }
+                    Button {
+                        AnalyticsService.click("edit_name", screen: "me")
+                        name = prefs.deviceName; editing = true
+                    } label: { Image(systemName: "pencil").foregroundStyle(Brand.navy).padding(8) }
                         .accessibilityLabel(Text("Edit name"))
                 }
                 .padding(24)
@@ -194,7 +227,12 @@ struct MeView: View {
                 .background(Brand.gradient)
 
                 VStack(spacing: 16) {
-                    if !store.isPremium { PremiumBanner { router.paywall() } }
+                    if !store.isPremium {
+                        PremiumBanner {
+                            AnalyticsService.click("premium", screen: "me")
+                            router.paywall(source: "me")
+                        }
+                    }
                     SectionCard {
                         HStack {
                             stat("Sent", FileUtils.formatSize(history.sentBytes), history.sentCount)
@@ -202,17 +240,25 @@ struct MeView: View {
                         }
                     }
                     SectionCard(padding: 4) {
-                        row("crown.fill", "Share you Premium", store.isPremium ? store.statusLabel : nil) { router.paywall() }
+                        row("crown.fill", "Share you Premium", store.isPremium ? store.statusLabel : nil) {
+                            AnalyticsService.click("premium", screen: "me"); router.paywall(source: "me")
+                        }
                         Divider()
-                        row("person.crop.circle", auth.account == nil ? "Sign in" : "Account", nil) { router.push(.account) }
+                        row("person.crop.circle", auth.account == nil ? "Sign in" : "Account", nil) {
+                            AnalyticsService.click("account", screen: "me"); router.push(.account)
+                        }
                         Divider()
-                        row("clock.arrow.circlepath", "Transfer history", nil) { router.push(.history) }
+                        row("clock.arrow.circlepath", "Transfer history", nil) {
+                            AnalyticsService.click("transfer_history", screen: "me"); router.push(.history)
+                        }
                         Divider()
-                        row("lock.fill", "Safebox", nil) { router.push(.safebox) }
+                        row("lock.fill", "Safebox", nil) { AnalyticsService.click("safebox", screen: "me"); router.push(.safebox) }
                         Divider()
-                        row("gearshape.fill", "Settings", nil) { router.push(.settings) }
+                        row("gearshape.fill", "Settings", nil) { AnalyticsService.click("settings", screen: "me"); router.push(.settings) }
                         Divider()
-                        row("info.circle.fill", "About", "\(AppConfig.appName) \(AppConfig.version)") { router.push(.about) }
+                        row("info.circle.fill", "About", "\(AppConfig.appName) \(AppConfig.version)") {
+                            AnalyticsService.click("about", screen: "me"); router.push(.about)
+                        }
                     }
                 }
                 .padding()
@@ -278,6 +324,10 @@ struct HistoryView: View {
                 Text("Received").tag(2)
             }
             .pickerStyle(.segmented)
+            .onChange(of: filter) { value in
+                let name = value == 1 ? "sent" : value == 2 ? "received" : "all"
+                AnalyticsService.click("filter", screen: "history", ["value": name])
+            }
             let list = history.entries.filter { filter == 0 || (filter == 1 ? $0.sent : !$0.sent) }
             if list.isEmpty { EmptyStateView(icon: "clock", title: "No transfers yet") }
             ForEach(list) { e in
@@ -292,7 +342,10 @@ struct HistoryView: View {
                     Image(systemName: e.sent ? "arrow.up.circle" : "arrow.down.circle").foregroundStyle(e.sent ? Brand.catApps : Brand.catPhoto)
                 }
                 .contentShape(Rectangle())
-                .onTapGesture { if let u = e.url { preview = u; looked = true } }
+                .onTapGesture {
+                    AnalyticsService.click("open_entry", screen: "history")
+                    if let u = e.url { preview = u; looked = true }
+                }
             }
         }
         .navigationTitle(Text("Transfer history"))

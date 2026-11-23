@@ -80,26 +80,41 @@ final class StoreService: ObservableObject {
         purchasing = true
         message = nil
         defer { purchasing = false }
+        let price = NSDecimalNumber(decimal: product.price).doubleValue
+        AnalyticsService.log(.beginCheckout, [
+            "value": price,
+            "currency": product.priceFormatStyle.currencyCode,
+            "items": product.id
+        ])
         do {
             let result = try await product.purchase()
             switch result {
             case .success(let verification):
                 guard case .verified(let transaction) = verification else {
                     message = String(localized: "The purchase could not be verified.")
+                    AnalyticsService.log(.purchaseFailed, ["product_id": product.id, "reason": "unverified"])
                     return
                 }
                 await transaction.finish()
                 await refreshEntitlementsNow()
-                AnalyticsService.log(.purchase, ["product_id": product.id])
+                AnalyticsService.logPurchase(
+                    productID: product.id,
+                    value: price,
+                    currency: product.priceFormatStyle.currencyCode,
+                    transactionID: String(transaction.id)
+                )
                 message = nil
             case .pending:
                 message = String(localized: "Purchase pending approval.")
             case .userCancelled:
+                AnalyticsService.log(.purchaseFailed, ["product_id": product.id, "reason": "cancelled"])
                 message = String(localized: "Purchase cancelled.")
             @unknown default:
+                AnalyticsService.log(.purchaseFailed, ["product_id": product.id, "reason": "unknown"])
                 message = String(localized: "Purchase did not complete.")
             }
         } catch {
+            AnalyticsService.log(.purchaseFailed, ["product_id": product.id, "reason": error.localizedDescription])
             message = String(localized: "Purchase failed. \(error.localizedDescription)")
             Log.e("StoreKit purchase failed", error)
         }
@@ -154,6 +169,7 @@ final class StoreService: ObservableObject {
     func grantFromAd() {
         Prefs.shared.premiumAdUntil = Date().addingTimeInterval(Self.adUnlockSeconds)
         refresh()
+        AdjustService.trackStartTrial(rewardType: "premium_24h")
     }
 
     /// Debug builds only: test Premium screens without a sandbox account.

@@ -61,6 +61,7 @@ final class MusicController: ObservableObject {
         VideoController.shared.stop()
         queue = tracks
         index = startAt
+        AnalyticsService.log(.musicPlay, ["queue_size": tracks.count])
         load()
         resume()
     }

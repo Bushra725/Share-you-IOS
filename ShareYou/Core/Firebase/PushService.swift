@@ -33,7 +33,11 @@ final class PushService: NSObject, ObservableObject {
             let granted = try await UNUserNotificationCenter.current()
                 .requestAuthorization(options: [.alert, .badge, .sound])
             await refreshStatus()
-            if granted { UIApplication.shared.registerForRemoteNotifications() }
+            if granted {
+                UIApplication.shared.registerForRemoteNotifications()
+                LocalNotificationService.shared.rescheduleReminders()
+            }
+            AnalyticsService.log(.notificationPermission, ["granted": granted ? 1 : 0])
             return granted
         } catch {
             Log.e("Notification permission failed", error)
@@ -85,6 +89,8 @@ extension PushService: UNUserNotificationCenterDelegate {
         let route = info["route"] as? String
         await MainActor.run {
             Messaging.messaging().appDidReceiveMessage(info)
+            let local = !(response.notification.request.trigger is UNPushNotificationTrigger)
+            AnalyticsService.log(.notificationOpen, ["source": local ? "local" : "push", "route": route ?? ""])
             if let route { Router.shared.openDeepLink(route) }
         }
     }

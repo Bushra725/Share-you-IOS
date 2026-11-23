@@ -10,12 +10,15 @@ struct FilesView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                StorageCard { router.push(.browser(AppFiles.documents)) }
+                StorageCard { AnalyticsService.click("storage_card", screen: "files"); router.push(.browser(AppFiles.documents)) }
                 SectionCard {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
                         ForEach(FileCategory.browsable) { c in
                             let list = files.filter { $0.category == c }
-                            Button { router.push(.category(c)) } label: {
+                            Button {
+                                AnalyticsService.click("category_\(c == .other ? "files" : c.rawValue)", screen: "files")
+                                router.push(.category(c))
+                            } label: {
                                 HStack(spacing: 10) {
                                     Image(systemName: c.icon).foregroundStyle(c.color)
                                         .frame(width: 40, height: 40).background(c.color.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
@@ -33,11 +36,11 @@ struct FilesView: View {
                     }
                 }
                 SectionCard(padding: 4) {
-                    menuRow("folder.fill", "Browse") { router.push(.browser(AppFiles.documents)) }
+                    menuRow("folder.fill", "Browse") { AnalyticsService.click("browse", screen: "files"); router.push(.browser(AppFiles.documents)) }
                     Divider()
-                    menuRow("externaldrive.fill.badge.exclamationmark", "Large files") { router.push(.largeFiles) }
+                    menuRow("externaldrive.fill.badge.exclamationmark", "Large files") { AnalyticsService.click("large_files", screen: "files"); router.push(.largeFiles) }
                     Divider()
-                    menuRow("square.and.arrow.down.fill", "Import from Files") { showImport = true }
+                    menuRow("square.and.arrow.down.fill", "Import from Files") { AnalyticsService.click("import", screen: "files"); showImport = true }
                 }
                 Text("Everything here is also in the Files app: On My iPhone › Share you.")
                     .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
@@ -55,6 +58,7 @@ struct FilesView: View {
                     let dest = AppFiles.uniqueURL(in: AppFiles.imported, name: u.lastPathComponent)
                     try? FileManager.default.copyItem(at: u, to: dest)
                 }
+                AnalyticsService.log(.fileImport, ["count": urls.count])
                 Task { files = await FileScanner.allFiles() }
             }
             .ignoresSafeArea()
@@ -183,21 +187,38 @@ struct CategoryFilesView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { tap(f) }
                 .swipeActions {
-                    Button(role: .destructive) { delete([f.url]) } label: { Label("Delete", systemImage: "trash") }
-                    Button { shareURL = f.url } label: { Label("Share", systemImage: "square.and.arrow.up") }.tint(Brand.cyan3)
+                    Button(role: .destructive) {
+                        AnalyticsService.click("delete", screen: "file_category")
+                        delete([f.url])
+                    } label: { Label("Delete", systemImage: "trash") }
+                    Button {
+                        AnalyticsService.click("share", screen: "file_category")
+                        AnalyticsService.log(.fileShare, ["category": category.rawValue])
+                        shareURL = f.url
+                    } label: { Label("Share", systemImage: "square.and.arrow.up") }.tint(Brand.cyan3)
                 }
                 .contextMenu {
-                    Button { shareURL = f.url } label: { Label("Share", systemImage: "square.and.arrow.up") }
-                    Button { renaming = f } label: { Label("Rename", systemImage: "pencil") }
-                    Button { sendNow([f]) } label: { Label("Send", systemImage: "paperplane") }
-                    Button(role: .destructive) { delete([f.url]) } label: { Label("Delete", systemImage: "trash") }
+                    Button {
+                        AnalyticsService.click("share", screen: "file_category")
+                        AnalyticsService.log(.fileShare, ["category": category.rawValue])
+                        shareURL = f.url
+                    } label: { Label("Share", systemImage: "square.and.arrow.up") }
+                    Button { AnalyticsService.click("rename", screen: "file_category"); renaming = f } label: { Label("Rename", systemImage: "pencil") }
+                    Button { AnalyticsService.click("send_file", screen: "file_category"); sendNow([f]) } label: { Label("Send", systemImage: "paperplane") }
+                    Button(role: .destructive) {
+                        AnalyticsService.click("delete", screen: "file_category")
+                        delete([f.url])
+                    } label: { Label("Delete", systemImage: "trash") }
                 }
             }
         }
         .navigationTitle(Text(category.title))
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button(selecting ? "Done" : "Select") { selecting.toggle(); picked.removeAll() }
+                Button(selecting ? "Done" : "Select") {
+                    AnalyticsService.click("select_mode", screen: "file_category")
+                    selecting.toggle(); picked.removeAll()
+                }
             }
             if selecting && !picked.isEmpty {
                 ToolbarItemGroup(placement: .bottomBar) {
@@ -208,7 +229,10 @@ struct CategoryFilesView: View {
             }
         }
         .confirmationDialog(Text("Delete \(picked.count) file(s)?"), isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) { delete(Array(picked)); picked.removeAll(); selecting = false }
+            Button("Delete", role: .destructive) {
+                AnalyticsService.click("delete", screen: "file_category")
+                delete(Array(picked)); picked.removeAll(); selecting = false
+            }
         }
         .modifier(FileActionsModifier(preview: $preview, shareURL: $shareURL, renaming: $renaming) { reload() })
         .task { reload() }
@@ -223,6 +247,8 @@ struct CategoryFilesView: View {
             if picked.contains(f.url) { picked.remove(f.url) } else { picked.insert(f.url) }
             return
         }
+        AnalyticsService.click("open_file", screen: "file_category", ["category": category.rawValue])
+        AnalyticsService.log(.fileOpen, ["category": category.rawValue])
         if category == .music {
             Task {
                 var tracks: [Track] = []
@@ -245,6 +271,8 @@ struct CategoryFilesView: View {
     }
 
     private func delete(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        AnalyticsService.log(.fileDelete, ["count": urls.count])
         urls.forEach { try? FileManager.default.removeItem(at: $0) }
         reload()
     }
@@ -275,7 +303,10 @@ struct FolderBrowserView: View {
                         Image(systemName: clipboard.move ? "scissors" : "doc.on.doc")
                         Text("\(clipboard.items.count) item(s): \(clip.lastPathComponent)").lineLimit(1)
                         Spacer()
-                        Button("Paste here") { clipboard.paste(into: folder); reload() }.buttonStyle(.borderedProminent)
+                        Button("Paste here") {
+                            AnalyticsService.click("paste_here", screen: "file_browser")
+                            clipboard.paste(into: folder); reload()
+                        }.buttonStyle(.borderedProminent)
                         Button { clipboard.clear() } label: { Image(systemName: "xmark") }
                     }
                 }
@@ -284,19 +315,29 @@ struct FolderBrowserView: View {
                 Group {
                     if f.isDirectory {
                         NavigationLink(value: Route.browser(f.url)) { FileRow(file: f) }
+                            .simultaneousGesture(TapGesture().onEnded {
+                                AnalyticsService.click("folder_opened", screen: "file_browser")
+                            })
                     } else {
                         FileRow(file: f).contentShape(Rectangle()).onTapGesture {
+                            AnalyticsService.click("open_file", screen: "file_browser")
+                            AnalyticsService.log(.fileOpen, ["category": f.category.rawValue])
                             preview = f.url
                             ads.tryShow(.fileOpen)
                         }
                     }
                 }
                 .contextMenu {
-                    if !f.isDirectory { Button { shareURL = f.url } label: { Label("Share", systemImage: "square.and.arrow.up") } }
-                    Button { renaming = f } label: { Label("Rename", systemImage: "pencil") }
-                    Button { clipboard.set([f.url], move: false) } label: { Label("Copy", systemImage: "doc.on.doc") }
-                    Button { clipboard.set([f.url], move: true) } label: { Label("Move", systemImage: "folder") }
+                    if !f.isDirectory { Button {
+                        AnalyticsService.click("share", screen: "file_browser")
+                        shareURL = f.url
+                    } label: { Label("Share", systemImage: "square.and.arrow.up") } }
+                    Button { AnalyticsService.click("rename", screen: "file_browser"); renaming = f } label: { Label("Rename", systemImage: "pencil") }
+                    Button { AnalyticsService.click("copy", screen: "file_browser"); clipboard.set([f.url], move: false) } label: { Label("Copy", systemImage: "doc.on.doc") }
+                    Button { AnalyticsService.click("move", screen: "file_browser"); clipboard.set([f.url], move: true) } label: { Label("Move", systemImage: "folder") }
                     Button(role: .destructive) {
+                        AnalyticsService.click("delete", screen: "file_browser")
+                        AnalyticsService.log(.fileDelete, ["count": 1])
                         try? FileManager.default.removeItem(at: f.url)
                         reload()
                     } label: { Label("Delete", systemImage: "trash") }
@@ -313,6 +354,7 @@ struct FolderBrowserView: View {
         .navigationTitle(folder == AppFiles.documents ? Text("Share you") : Text(folder.lastPathComponent))
         .searchable(text: $search, prompt: Text("Search files"))
         .onChange(of: search) { q in
+            if q.count == 1 { AnalyticsService.click("search", screen: "file_browser") }
             Task {
                 let all = await FileScanner.allFiles(under: folder)
                 results = q.isEmpty ? [] : all.filter { $0.name.localizedCaseInsensitiveContains(q) }
@@ -321,8 +363,14 @@ struct FolderBrowserView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
-                    Button { newFolder = true } label: { Label("New folder", systemImage: "folder.badge.plus") }
-                    Toggle(isOn: $sortBySize) { Label("Sort by size", systemImage: "arrow.up.arrow.down") }
+                    Button {
+                        AnalyticsService.click("new_folder", screen: "file_browser")
+                        newFolder = true
+                    } label: { Label("New folder", systemImage: "folder.badge.plus") }
+                    Toggle(isOn: Binding(get: { sortBySize }, set: { on in
+                        AnalyticsService.click("sort_by_size", screen: "file_browser")
+                        sortBySize = on
+                    })) { Label("Sort by size", systemImage: "arrow.up.arrow.down") }
                 } label: { Image(systemName: "ellipsis.circle") }
                     .accessibilityLabel(Text("More"))
             }
@@ -391,7 +439,10 @@ struct LargeFilesView: View {
                         FileRow(file: f)
                     }
                     .contentShape(Rectangle())
-                    .onTapGesture { if picked.contains(f.url) { picked.remove(f.url) } else { picked.insert(f.url) } }
+                    .onTapGesture {
+                        AnalyticsService.click("toggle_file", screen: "large_files")
+                        if picked.contains(f.url) { picked.remove(f.url) } else { picked.insert(f.url) }
+                    }
                 }
             } footer: {
                 Text("Files over 50 MB stored in Share you, largest first. Photos and videos in your library are cleaned in Tools › Clean.")
@@ -409,6 +460,10 @@ struct LargeFilesView: View {
         }
         .confirmationDialog(Text("Delete \(picked.count) file(s)?"), isPresented: $confirm, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
+                let count = picked.count
+                let bytes = files.filter { picked.contains($0.url) }.reduce(Int64(0)) { $0 + $1.size }
+                AnalyticsService.click("delete_confirm", screen: "large_files", ["count": count, "bytes": AnalyticsService.bytes(bytes)])
+                AnalyticsService.log(.fileDelete, ["count": count])
                 picked.forEach { try? FileManager.default.removeItem(at: $0) }
                 picked.removeAll()
                 Task { await load() }

@@ -30,7 +30,10 @@ struct SendView: View {
                                 Text(FileUtils.formatSize(item.size)).font(.caption).foregroundStyle(.secondary)
                             }
                         }
-                        .swipeActions { Button(role: .destructive) { selection.remove(item) } label: { Label("Remove", systemImage: "trash") } }
+                        .swipeActions { Button(role: .destructive) {
+                            AnalyticsService.click("remove_file", screen: "send_select")
+                            selection.remove(item)
+                        } label: { Label("Remove", systemImage: "trash") } }
                     }
                 }
             } header: {
@@ -40,15 +43,25 @@ struct SendView: View {
             }
         }
         .navigationTitle(Text("Select files"))
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if !selection.items.isEmpty {
-                ToolbarItem(placement: .cancellationAction) { Button("Clear") { selection.clear() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Clear") {
+                    AnalyticsService.click("clear_selection", screen: "send_select")
+                    selection.clear()
+                } }
             }
         }
         .safeAreaInset(edge: .bottom) {
             Button {
-                if !store.isPremium && !selection.oversized.isEmpty { showLimit = true }
-                else { router.push(.connect(group: false)) }
+                AnalyticsService.click("next", screen: "send_select", [
+                    "files_count": selection.items.count,
+                    "total_bytes": AnalyticsService.bytes(selection.totalSize)
+                ])
+                if !store.isPremium && !selection.oversized.isEmpty {
+                    AnalyticsService.log(.fileLimitHit)
+                    showLimit = true
+                } else { router.push(.connect(group: false)) }
             } label: {
                 Text("NEXT").frame(maxWidth: .infinity)
             }
@@ -59,9 +72,15 @@ struct SendView: View {
             .background(.bar)
         }
         .alert(Text("File over 1 GB"), isPresented: $showLimit) {
-            Button("Go Premium") { router.paywall() }
-            Button("Remove large files", role: .destructive) { selection.removeOversized() }
-            Button("Cancel", role: .cancel) {}
+            Button("Go Premium") {
+                AnalyticsService.click("limit_go_premium", screen: "send_select")
+                router.paywall(source: "file_limit")
+            }
+            Button("Remove large files", role: .destructive) {
+                AnalyticsService.click("limit_remove_large", screen: "send_select")
+                selection.removeOversized()
+            }
+            Button("Cancel", role: .cancel) { AnalyticsService.click("limit_cancel", screen: "send_select") }
         } message: {
             Text("Free plan sends files up to 1 GB each. Upgrade to Premium to send \(FileUtils.formatSize(selection.oversized.first?.size ?? 0)).")
         }
@@ -76,21 +95,46 @@ struct FileSourceButtons: View {
     @State private var showLocal = false
 
     var body: some View {
-        Button { showMedia = true } label: { Label("Photos & videos", systemImage: "photo.on.rectangle.angled") }
+        Button {
+            AnalyticsService.click("src_photos", screen: "send_select")
+            showMedia = true
+        } label: { Label("Photos & videos", systemImage: "photo.on.rectangle.angled") }
             .sheet(isPresented: $showMedia) {
-                MediaPicker { items, _ in selection.add(items) }.ignoresSafeArea()
+                MediaPicker { items, _ in
+                    selection.add(items)
+                    AnalyticsService.log(.filesSelected, [
+                        "source": "photos",
+                        "count": items.count,
+                        "total_bytes": AnalyticsService.bytes(items.reduce(0) { $0 + $1.size })
+                    ])
+                }
+                    .ignoresSafeArea(edges: .bottom)
+                    .stablePickerSheet()
             }
-        Button { showFiles = true } label: { Label("Any file (Files app)", systemImage: "folder") }
+        Button {
+            AnalyticsService.click("src_files", screen: "send_select")
+            showFiles = true
+        } label: { Label("Any file (Files app)", systemImage: "folder") }
             .sheet(isPresented: $showFiles) {
                 DocumentPicker { urls in
-                    let staged = urls.compactMap { try? AppFiles.stage($0) }
-                    selection.add(staged.map { ShareItem(url: $0) })
+                    let staged = urls.compactMap { try? AppFiles.stage($0) }.map { ShareItem(url: $0) }
+                    selection.add(staged)
+                    AnalyticsService.log(.filesSelected, [
+                        "source": "files",
+                        "count": staged.count,
+                        "total_bytes": AnalyticsService.bytes(staged.reduce(0) { $0 + $1.size })
+                    ])
                 }
-                .ignoresSafeArea()
+                .ignoresSafeArea(edges: .bottom)
+                .stablePickerSheet()
             }
-        Button { showLocal = true } label: { Label("Share you files (received, music, documents)", systemImage: "tray.full") }
+        Button {
+            AnalyticsService.click("src_app_files", screen: "send_select")
+            showLocal = true
+        } label: { Label("Share you files (received, music, documents)", systemImage: "tray.full") }
             .sheet(isPresented: $showLocal) {
                 NavigationStack { LocalFilePicker() }
+                    .stablePickerSheet()
             }
     }
 }
@@ -110,10 +154,16 @@ struct LocalFilePicker: View {
                 ForEach(FileCategory.browsable) { Text($0.title).tag(FileCategory?.some($0)) }
             }
             .pickerStyle(.menu)
+            .onChange(of: category) { value in
+                AnalyticsService.click("filter_type", screen: "local_file_picker", ["category": value?.rawValue ?? "all"])
+            }
             if loading { ProgressView() }
             ForEach(files.filter { category == nil || $0.category == category }) { f in
                 let item = f.shareItem
-                Button { selection.toggle(item) } label: {
+                Button {
+                    AnalyticsService.click("toggle_file", screen: "local_file_picker")
+                    selection.toggle(item)
+                } label: {
                     HStack(spacing: 12) {
                         FileThumb(url: f.url, name: f.name)
                         VStack(alignment: .leading) {
@@ -133,7 +183,11 @@ struct LocalFilePicker: View {
         }
         .navigationTitle(Text("Share you files"))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") {
+            AnalyticsService.click("done", screen: "local_file_picker", ["count": selection.items.count])
+            dismiss()
+        } } }
+        .trackScreen("local_file_picker")
         .task {
             files = await FileScanner.allFiles()
             loading = false
@@ -180,6 +234,10 @@ struct ConnectView: View {
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
+            .onChange(of: mode) { value in
+                let id = value == 0 ? "mode_scan" : value == 1 ? "mode_nearby" : "mode_ip"
+                AnalyticsService.click(id, screen: "connect")
+            }
 
             if transfer.session.busy {
                 ProgressView(transfer.session.status).padding()
@@ -192,9 +250,11 @@ struct ConnectView: View {
             case 0:
                 ScannerScreen { code in
                     guard let info = HostInfo.parse(code) else {
+                        AnalyticsService.log(.qrScanned, ["valid": 0, "peer_platform": "unknown"])
                         Router.shared.showToast(String(localized: "This is not a Share you QR code"))
                         return
                     }
+                    AnalyticsService.log(.qrScanned, ["valid": 1, "peer_platform": info.bonjourName == nil ? "android" : "ios"])
                     Task { await transfer.connect(info) }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 24))
@@ -208,7 +268,10 @@ struct ConnectView: View {
                             HStack { ProgressView(); Text("Looking for nearby devices…") }
                         }
                         ForEach(transfer.nearby) { d in
-                            Button { Task { await transfer.connect(nearby: d) } } label: {
+                            Button {
+                                AnalyticsService.click("nearby_device", screen: "connect")
+                                Task { await transfer.connect(nearby: d) }
+                            } label: {
                                 Label(d.name, systemImage: "iphone.radiowaves.left.and.right")
                             }
                         }
@@ -222,7 +285,10 @@ struct ConnectView: View {
                         TextField("192.168.1.20", text: $manualIP)
                             .keyboardType(.decimalPad)
                             .textContentType(.none)
-                        Button("Connect") { Task { await transfer.connect(ip: manualIP) } }
+                        Button("Connect") {
+                            AnalyticsService.click("connect_ip", screen: "connect")
+                            Task { await transfer.connect(ip: manualIP) }
+                        }
                             .disabled(manualIP.split(separator: ".").count != 4)
                     } footer: {
                         Text("Use the address shown under the QR code on the receiving phone.")
@@ -288,7 +354,10 @@ struct HostQRView: View {
                 }
                 if let error = transfer.session.error {
                     ErrorBanner(text: error) { transfer.clearError() }
-                    Button("Try again") { transfer.startHost(group: group) }.buttonStyle(.borderedProminent)
+                    Button("Try again") {
+                        AnalyticsService.click("retry_host", screen: "receive")
+                        transfer.startHost(group: group)
+                    }.buttonStyle(.borderedProminent)
                 }
                 if group {
                     GroupMembersCard()
@@ -319,7 +388,12 @@ struct GroupMembersCard: View {
                 Text("Members").font(.headline)
                 Spacer()
                 UnlockPill(state: store.isPremium ? .premium : (unlocked ? .unlockedToday : .locked))
-                    .onTapGesture { if !unlocked { showUnlock = true } }
+                    .onTapGesture {
+                        if !unlocked {
+                            AnalyticsService.click("unlock_group", screen: "receive")
+                            showUnlock = true
+                        }
+                    }
             }
             Text("\(transfer.session.peers.count) of \(unlocked ? DayUnlock.fullGroupMembers : DayUnlock.freeGroupMembers) joined")
                 .font(.subheadline).foregroundStyle(.secondary).padding(.top, 2)
@@ -342,6 +416,7 @@ struct GroupMembersCard: View {
                         icon: "person.3.fill",
                         perks: ["Up to 8 members", "Lasts until midnight"]) {
                 DayUnlock.grantGroup()
+                AnalyticsService.log(.featureUnlock, ["feature": "group_8", "source": "rewarded_ad"])
                 tick += 1
             }
         }
@@ -360,11 +435,17 @@ struct GroupShareView: View {
                 Text("Share with several phones at once").font(.title3.bold()).multilineTextAlignment(.center)
                 Text("One phone creates the group, the others scan its QR code. Every file is forwarded to all members.")
                     .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                Button { router.push(.receive(group: true)) } label: {
+                Button {
+                    AnalyticsService.click("create_group", screen: "group_share")
+                    router.push(.receive(group: true))
+                } label: {
                     Label("Create group", systemImage: "qrcode").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(BrandButtonStyle())
-                Button { router.push(.connect(group: true)) } label: {
+                Button {
+                    AnalyticsService.click("join_group", screen: "group_share")
+                    router.push(.connect(group: true))
+                } label: {
                     Label("Join group", systemImage: "qrcode.viewfinder").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered).controlSize(.large)
@@ -398,7 +479,11 @@ struct TransferSessionView: View {
                     TransferRow(item: item)
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            if item.status == .done, let url = item.resultURL { preview = url }
+                            if item.status == .done, let url = item.resultURL {
+                                AnalyticsService.click("open_received", screen: "transfer_session")
+                                AnalyticsService.log(.fileOpen, ["category": item.mime.split(separator: "/").first.map(String.init) ?? "other"])
+                                preview = url
+                            }
                         }
                 }
                 if transfer.items.isEmpty {
@@ -420,7 +505,10 @@ struct TransferSessionView: View {
                 List { FileSourceButtons() }
                     .navigationTitle(Text("Send more"))
                     .navigationBarTitleDisplayMode(.inline)
-                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Send") { showMore = false } } }
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Send") {
+                        AnalyticsService.click("send_more_confirm", screen: "transfer_session", ["count": selection.items.count])
+                        showMore = false
+                    } } }
                     .overlay(alignment: .bottom) {
                         if selection.importing { ProgressView().padding() }
                         else if !selection.items.isEmpty { Text("\(selection.items.count) file(s) selected").padding() }
@@ -435,6 +523,7 @@ struct TransferSessionView: View {
             guard !embedded else { return }
             if transfer.finishedCount > 0 { ads.tryShow(group ? .groupDone : .transferDone) }
         }
+        .trackScreen("transfer_session")
     }
 
     private var header: some View {
@@ -460,10 +549,16 @@ struct TransferSessionView: View {
 
     private var bottomBar: some View {
         HStack(spacing: 12) {
-            Button { showMore = true } label: { Label("Send more", systemImage: "plus").frame(maxWidth: .infinity) }
+            Button {
+                AnalyticsService.click("send_more", screen: "transfer_session")
+                showMore = true
+            } label: { Label("Send more", systemImage: "plus").frame(maxWidth: .infinity) }
                 .buttonStyle(BrandButtonStyle())
                 .disabled(transfer.session.disconnected)
             Button(role: .destructive) {
+                let done = transfer.items.filter { $0.status == .done }.count
+                AnalyticsService.click("disconnect", screen: "transfer_session")
+                AnalyticsService.log(.disconnect, ["files_done": done])
                 transfer.stop()
                 dismiss()
             } label: { Label("Disconnect", systemImage: "xmark").frame(maxWidth: .infinity) }
@@ -510,6 +605,28 @@ struct TransferRow: View {
         case .failed: Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.red)
         case .active: Text("\(Int(item.progress * 100))%").font(.caption.monospacedDigit())
         case .waiting: Image(systemName: "clock").foregroundStyle(.secondary)
+        }
+    }
+}
+
+extension View {
+    /// One full-height detent. A downward swipe dismisses the picker instead of stretching it over the status bar.
+    func stablePickerSheet() -> some View {
+        modifier(StablePickerSheet())
+    }
+}
+
+private struct StablePickerSheet: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 16.4, *) {
+            content
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationContentInteraction(.scrolls)
+        } else {
+            content
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
 }

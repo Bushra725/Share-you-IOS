@@ -112,6 +112,12 @@ final class PhotoCleaner: ObservableObject {
         progress = 1
         scanning = false
         scanned = true
+        AnalyticsService.log(.cleanScan, [
+            "duplicates": duplicates.count,
+            "similar": similar.count,
+            "screenshots": screenshots.count,
+            "large_videos": largeVideos.count
+        ])
     }
 
     nonisolated private static func list(_ r: PHFetchResult<PHAsset>) -> [PHAsset] {
@@ -182,9 +188,10 @@ final class PhotoCleaner: ObservableObject {
         let ids = Array(selected)
         guard !ids.isEmpty else { return false }
         let assets = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
+        let bytes = selectedBytes
         do {
             try await PHPhotoLibrary.shared().performChanges { PHAssetChangeRequest.deleteAssets(assets) }
-            AnalyticsService.log(.cleanDone, ["count": ids.count])
+            AnalyticsService.log(.cleanDelete, ["count": ids.count, "bytes": AnalyticsService.bytes(bytes)])
             AdsManager.shared.markTaskDone()
             await scan()
             return true
@@ -211,6 +218,8 @@ final class PhotoCleaner: ObservableObject {
     }
 
     func cleanJunk() {
+        let removed = junkBytes
+        AnalyticsService.log(.junkClean, ["bytes": AnalyticsService.bytes(removed)])
         let fm = FileManager.default
         for d in [fm.temporaryDirectory, fm.urls(for: .cachesDirectory, in: .userDomainMask)[0]] {
             for item in (try? fm.contentsOfDirectory(at: d, includingPropertiesForKeys: nil)) ?? [] {

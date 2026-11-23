@@ -1,6 +1,18 @@
 import SwiftUI
 
-enum AppTab: Hashable { case home, files, player, tools, me }
+enum AppTab: Hashable {
+    case home, files, player, tools, me
+
+    var analyticsName: String {
+        switch self {
+        case .home: return "home"
+        case .files: return "files"
+        case .player: return "player"
+        case .tools: return "tools"
+        case .me: return "me"
+        }
+    }
+}
 
 /// Screens reachable with NavigationLink(value:) from any tab.
 enum Route: Hashable {
@@ -9,6 +21,29 @@ enum Route: Hashable {
     case safebox, converter, clean
     case category(FileCategory), browser(URL), largeFiles
     case music, videos
+
+    /// Stable `screen_view` name shared with the Android route names.
+    var analyticsName: String {
+        switch self {
+        case .send: return "send_select"
+        case .receive: return "receive"
+        case .group: return "group_share"
+        case .connect: return "connect"
+        case .pc: return "connect_pc"
+        case .history: return "history"
+        case .settings: return "settings"
+        case .account: return "account"
+        case .about: return "about"
+        case .safebox: return "safebox"
+        case .converter: return "converter"
+        case .clean: return "clean"
+        case .category: return "file_category"
+        case .browser: return "file_browser"
+        case .largeFiles: return "large_files"
+        case .music: return "music"
+        case .videos: return "videos"
+        }
+    }
 }
 
 /// Navigation state. Each tab keeps its own stack.
@@ -49,8 +84,8 @@ final class Router: ObservableObject {
         }
     }
 
-    func paywall() {
-        AnalyticsService.log(.paywallShown)
+    func paywall(source: String = "app") {
+        AnalyticsService.log(.paywallView, ["source": source])
         showPaywall = true
     }
 
@@ -70,7 +105,12 @@ final class Router: ObservableObject {
         }
         do {
             let staged = try AppFiles.stage(url)
-            SelectionStore.shared.add(ShareItem(url: staged))
+            let item = ShareItem(url: staged)
+            AnalyticsService.log(.fileSharedIn, [
+                "category": item.mime.split(separator: "/").first.map(String.init) ?? "other",
+                "bytes": AnalyticsService.bytes(item.size)
+            ])
+            SelectionStore.shared.add(item)
             tab = .home
             homePath = NavigationPath()
             homePath.append(Route.send)
@@ -82,6 +122,7 @@ final class Router: ObservableObject {
 
     /// Push-notification / URL deep link: "receive", "send", "pc", "premium", "safebox", "converter", "clean".
     func openDeepLink(_ route: String) {
+        AnalyticsService.log(.deepLinkOpen, ["route": route])
         switch route.lowercased() {
         case "premium": paywall()
         case "receive": tab = .home; homePath.append(Route.receive(group: false))
